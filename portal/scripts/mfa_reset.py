@@ -5,7 +5,7 @@
 
 On the office server, inside the container:
 
-    podman exec hc-portal-v2 python scripts/mfa_reset.py <username>
+    podman exec hc-portal python scripts/mfa_reset.py <username>
 
 The person connects a new phone at their next sign-in. Check it really is them
 first: whoever signs in next with their password connects the phone. Never

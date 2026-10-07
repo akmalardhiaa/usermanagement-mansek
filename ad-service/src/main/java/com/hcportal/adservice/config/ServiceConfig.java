@@ -9,6 +9,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
 import com.hcportal.adservice.auth.AuthService;
+import com.hcportal.adservice.directory.DirectoryService;
+import com.hcportal.adservice.directory.DirectorySettings;
 import com.hcportal.adservice.ldap.LdapConnector;
 import com.hcportal.adservice.security.ServiceTokenFilter;
 
@@ -48,6 +50,21 @@ public class ServiceConfig {
     @Bean
     AuthService authService(AdSettings settings, LdapConnector connector) {
         return new AuthService(settings, connector);
+    }
+
+    @Bean
+    DirectorySettings directorySettings(Environment environment) {
+        Map<String, String> values = new HashMap<>();
+        for (String name : DirectorySettings.ENV_NAMES) {
+            String value = environment.getProperty(name);
+            if (value != null) values.put(name, value);
+        }
+        return DirectorySettings.from(values);
+    }
+
+    @Bean
+    DirectoryService directoryService(AdSettings settings, DirectorySettings directory, LdapConnector connector) {
+        return new DirectoryService(settings.ldap().map(AdSettings.LdapTarget::baseDn), directory, connector);
     }
 
     @Bean

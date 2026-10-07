@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ TYPE_LABELS[item.type] }} — {{ item.subject.displayName }}{% endblock %}
+{% block content %}
+<section class="stack-lg">
+  <div class="page-head">
+    <div>
+      <a class="small" href="/pengajuan">← Pengajuan</a>
+      <h1>{{ TYPE_LABELS[item.type] }} — {{ item.subject.displayName }}</h1>
+      <p class="muted">Diajukan {{ item.requester.name }} · {{ item.createdAt | when }} · versi {{ item.version }}</p>
+    </div>
+    <span class="badge badge-lg badge-{{ 'ok' if item.status == 'COMPLETED' else ('danger' if item.status in ['FAILED','REJECTED'] else ('muted' if item.status in ['CANCELLED','EXPIRED'] else 'warn')) }}">{{ STATUS_LABELS[item.status] }}</span>
+  </div>
+
+  {% if sent %}<p class="alert alert-ok">Pengajuan dikirim. Manager menerima email persetujuan sekarang.</p>{% endif %}
+  {% if message %}<p class="alert alert-ok">{{ message }}</p>{% endif %}
+  {% if error %}<p class="alert alert-error">{{ error }}</p>{% endif %}
+
+  <div class="grid-2 align-start">
+    <div class="card">
+      <h2 class="card-title">Isi pengajuan</h2>
+      <ul class="facts">
+        {% for label, value in rows %}<li><span>{{ label }}</span><strong>{{ value }}</strong></li>{% endfor %}
+        {% if item.effectiveAt and item.type != 'ONBOARDING' %}<li><span>Berlaku</span><strong>{{ item.effectiveAt | when }}</strong></li>{% endif %}
+      </ul>
+    </div>
+
+    <div class="stack">
+      <div class="card">
+        <h2 class="card-title">Persetujuan</h2>
+        {% if not item.approvals %}<p class="muted">Belum dikirim.</p>{% endif %}
+        <ol class="timeline">
+          {% for step in item.approvals if step.version == item.version %}
+          <li class="{{ 'done' if step.decision == 'APPROVED' else ('rejected' if step.decision == 'REJECTED' else '') }}">
+            <strong>{{ 'Manager' if step.stage == 'MANAGER' else 'Tim CISO' }}</strong>
+            <span class="muted small">
+              {% if step.decision %}{{ 'Disetujui' if step.decision == 'APPROVED' else 'Ditolak' }} oleh {{ step.decidedBy.name }} · {{ step.decidedAt | when }}
+              {% elif step.pool %}Menunggu salah satu dari: {{ step.pool | map(attribute='name') | join(', ') }}
+              {% else %}Menunggu {{ step.approver.name }} ({{ step.approver.email }}){% endif %}
+            </span>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+
+      {% if job %}
+      <div class="card">
+        <h2 class="card-title">Eksekusi di Active Directory</h2>
+        <ul class="facts">
+          {% for step in job.steps %}
+          <li><span>{{ step.stepKey }}</span><strong class="{{ 'ok' if step.state == 'DONE' else 'danger' }}">{{ 'Selesai' if step.state == 'DONE' else 'Gagal' }}</strong></li>
+          {% endfor %}
+        </ul>
+        {% if job.errorMessage %}<p class="alert alert-error">{{ job.errorMessage }}</p>{% endif %}
+        <p class="muted small">Percobaan ke-{{ job.attempt }}.</p>
+      </div>
+      {% endif %}
+
+      <div class="actions">
+        {% if item.status in ['DRAFT','PENDING_MANAGER','PENDING_CISO'] and is_requester %}
+          <a class="button button-secondary" href="/pengajuan/{{ item.id }}/revisi">Revisi</a>
+        {% endif %}
+        {% if item.status in ['DRAFT','PENDING_MANAGER','PENDING_CISO','APPROVED','SCHEDULED','QUEUED'] and is_requester and can('request.cancel') %}
+          <form method="post" action="/pengajuan/{{ item.id }}/batal"><button class="button button-danger-ghost" type="submit">Batalkan</button></form>
+        {% endif %}
+        {% if item.status == 'FAILED' and can('execution.run') %}
+          <form method="post" action="/pengajuan/{{ item.id }}/ulang" class="inline-form">
+            {% if job and job.errorCode == 'LEASE_EXPIRED' %}
+            <label class="check"><input type="checkbox" name="rekonsiliasi" value="ya"> Sudah saya bandingkan dengan direktori</label>
+            {% endif %}
+            <button class="button button-primary button-inline" type="submit">Coba lagi</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-flush">
+    <h2 class="card-title pad">Jejak audit</h2>
+    <table class="table">
+      <thead><tr><th>Waktu</th><th>Oleh</th><th>Kejadian</th><th>Sumber</th></tr></thead>
+      <tbody>{% for e in trail %}
+        <tr><td class="muted small">{{ e.at | when }}</td><td>{{ e.actorName }}</td><td>{{ e.action }}</td><td class="muted small">{{ e.source }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

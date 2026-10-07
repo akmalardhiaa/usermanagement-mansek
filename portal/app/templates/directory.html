@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Direktori{% endblock %}
+{% block content %}
+<section class="stack-lg">
+  <div class="page-head">
+    <div>
+      <span class="pill">Human Capital Platform</span>
+      <h1>Direktori Karyawan</h1>
+      <p class="muted">Diisi otomatis dari Active Directory. Perubahan diajukan lewat pengajuan dan disetujui manager &amp; CISO.</p>
+    </div>
+    {% if can('request.create') %}<a class="button button-primary button-inline" href="/pengajuan/baru?jenis=onboarding">+ Onboarding</a>{% endif %}
+  </div>
+
+  <div class="stats">
+    <a class="stat" href="/?status=aktif"><span class="stat-value">{{ stats.active }}</span><span class="muted small">Karyawan aktif</span></a>
+    <a class="stat" href="/?status=nonaktif"><span class="stat-value">{{ stats.disabled }}</span><span class="muted small">Nonaktif</span></a>
+    <a class="stat" href="/pengajuan"><span class="stat-value">{{ stats.pending }}</span><span class="muted small">Pengajuan berjalan</span></a>
+    <div class="stat"><span class="stat-value">{{ stats.new }}</span><span class="muted small">Baru 30 hari terakhir</span></div>
+  </div>
+
+  <form class="toolbar" method="get" action="/">
+    <input type="search" name="q" value="{{ query.q or '' }}" placeholder="Cari nama, email, jabatan, divisi" aria-label="Cari">
+    <select name="departemen" aria-label="Divisi">
+      <option value="">Semua divisi</option>
+      {% for d in departments %}<option value="{{ d }}" {{ 'selected' if query.departemen == d }}>{{ d }}</option>{% endfor %}
+    </select>
+    <select name="status" aria-label="Status">
+      <option value="aktif" {{ 'selected' if (query.status or 'aktif') == 'aktif' }}>Aktif</option>
+      <option value="nonaktif" {{ 'selected' if query.status == 'nonaktif' }}>Nonaktif</option>
+      <option value="semua" {{ 'selected' if query.status == 'semua' }}>Semua</option>
+    </select>
+    <select name="urut" aria-label="Urutkan">
+      {% for key, label in [('nama','Nama'),('departemen','Divisi'),('jabatan','Jabatan'),('status','Status')] %}
+      <option value="{{ key }}" {{ 'selected' if (query.urut or 'nama') == key }}>Urut: {{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="button button-secondary" type="submit">Terapkan</button>
+    {% if can('directory.export') %}
+    <a class="button button-ghost" href="/direktori/export.xlsx?{{ base_query | urlencode }}">Export Excel</a>
+    {% endif %}
+  </form>
+
+  <div class="card card-flush">
+    {% if not employees %}
+      <p class="empty">Tidak ada karyawan yang cocok.</p>
+    {% else %}
+    <table class="table">
+      <thead><tr><th>Nama</th><th>Jabatan</th><th>Divisi</th><th>Status</th><th>Pengajuan</th></tr></thead>
+      <tbody>
+      {% for e in employees %}
+        <tr>
+          <td><a href="/karyawan/{{ e.id }}" class="person"><strong>{{ e.displayName }}</strong><span class="muted small">{{ e.email }}</span></a></td>
+          <td>{{ e.jobTitle or '—' }}</td>
+          <td>{{ e.department or '—' }}</td>
+          <td><span class="badge {{ 'badge-ok' if e.status == 'ACTIVE' else 'badge-muted' }}">{{ 'Aktif' if e.status == 'ACTIVE' else 'Nonaktif' }}</span></td>
+          <td>{% set r = active_requests.get(e.id) %}{% if r %}<a class="badge badge-warn" href="/pengajuan/{{ r.id }}">{{ TYPE_LABELS[r.type] }} · {{ STATUS_LABELS[r.status] }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  {% if pages > 1 %}
+  <nav class="pager" aria-label="Halaman">
+    <span class="muted small">{{ total }} karyawan · halaman {{ page }} dari {{ pages }}</span>
+    <span>
+      {% if page > 1 %}<a class="button button-ghost" href="/?{{ base_query | urlencode }}&halaman={{ page - 1 }}">← Sebelumnya</a>{% endif %}
+      {% if page < pages %}<a class="button button-ghost" href="/?{{ base_query | urlencode }}&halaman={{ page + 1 }}">Berikutnya →</a>{% endif %}
+    </span>
+  </nav>
+  {% else %}
+  <p class="muted small">{{ total }} karyawan.</p>
+  {% endif %}
+</section>
+{% endblock %}

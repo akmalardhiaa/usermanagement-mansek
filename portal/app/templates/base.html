@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ brand }}{% endblock %} · HC User Management</title>
   <link rel="stylesheet" href="{{ url_for('static', path='portal.css') }}">
+  {% block head %}{% endblock %}
 </head>
 <body>
   <header class="topbar">
@@ -13,7 +14,25 @@
         <span class="brand-mark" aria-hidden="true">HC</span>
         <span class="brand-name">{{ brand }}</span>
       </a>
-      {% block header_actions %}{% endblock %}
+      {% if nav %}
+      <nav class="nav">
+        {% for href, label in nav %}
+          <a href="{{ href }}" class="{{ 'active' if (href == '/' and current_path in ['/', '/direktori']) or (href != '/' and current_path.startswith(href)) else '' }}">{{ label }}</a>
+        {% endfor %}
+      </nav>
+      {% endif %}
+      {% if session %}
+      <div class="header-user">
+        <span class="avatar" aria-hidden="true">{{ session.full_name[:2] | upper }}</span>
+        <span class="who">
+          <span>{{ session.full_name }}</span>
+          <span class="muted small">{{ session.email }}</span>
+        </span>
+        <form method="post" action="/logout">
+          <button class="button button-ghost" type="submit">Keluar</button>
+        </form>
+      </div>
+      {% endif %}
     </div>
   </header>
   <main class="page">

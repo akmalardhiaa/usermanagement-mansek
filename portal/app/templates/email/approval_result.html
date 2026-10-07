@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="id">
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Segoe UI,Arial,sans-serif;color:#142030">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:24px 0">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;border:1px solid #e3e8ef">
+        <tr><td style="padding:24px 28px">
+          <div style="font-size:12px;color:#60738c;text-transform:uppercase;letter-spacing:.06em">HC User Management</div>
+          <div style="font-size:20px;font-weight:600;margin-top:6px;color:{{ '#1f8f4e' if approved else '#b3261e' }}">
+            Pengajuan {{ 'disetujui' if approved else 'ditolak' }}
+          </div>
+          <div style="font-size:14px;color:#4a5c73;margin-top:8px;line-height:1.5">
+            {{ type_label }} untuk <strong>{{ content.subjectName }}</strong>
+            {% if approved %}sudah disetujui manager dan tim CISO, dan sedang dijalankan ke Active Directory.
+            {% else %}ditolak. Tidak ada yang diubah di Active Directory.{% endif %}
+          </div>
+          <div style="margin-top:18px">
+            <a href="{{ request_url }}" style="display:inline-block;background:#173d6e;color:#ffffff;font-weight:600;text-decoration:none;padding:11px 20px;border-radius:8px;font-size:14px">Lihat pengajuan</a>
+          </div>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

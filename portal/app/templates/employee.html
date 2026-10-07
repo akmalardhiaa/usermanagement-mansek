@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ employee.displayName }}{% endblock %}
+{% block content %}
+<section class="stack-lg">
+  <div class="page-head">
+    <div>
+      <a class="small" href="/">← Direktori</a>
+      <h1>{{ employee.displayName }}</h1>
+      <p class="muted">{{ employee.jobTitle or '—' }} · {{ employee.department or '—' }}
+        · <span class="badge {{ 'badge-ok' if employee.status == 'ACTIVE' else 'badge-muted' }}">{{ 'Aktif' if employee.status == 'ACTIVE' else 'Nonaktif' }}</span></p>
+    </div>
+  </div>
+
+  {% if active %}
+  <div class="note note-warn">
+    <strong>Ada pengajuan berjalan</strong>
+    <p>{{ TYPE_LABELS[active.type] }} — {{ STATUS_LABELS[active.status] }}. <a href="/pengajuan/{{ active.id }}">Lihat pengajuan</a>.
+       Pengajuan baru untuk karyawan ini bisa dibuat setelah yang ini selesai atau dibatalkan.</p>
+  </div>
+  {% elif can('request.create') and employee.status == 'ACTIVE' %}
+  <div class="actions">
+    <a class="button button-secondary" href="/pengajuan/baru?jenis=mutasi&karyawan={{ employee.id }}">Ajukan mutasi</a>
+    <a class="button button-secondary" href="/pengajuan/baru?jenis=profil&karyawan={{ employee.id }}">Ubah profil</a>
+    <a class="button button-danger-ghost" href="/pengajuan/baru?jenis=resign&karyawan={{ employee.id }}">Ajukan resign / termination</a>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2 class="card-title">Data karyawan</h2>
+    <ul class="facts">
+      <li><span>Email</span><strong>{{ employee.email }}</strong></li>
+      <li><span>Manager</span><strong>{% if employee.managerName %}{{ employee.managerName }} ({{ employee.managerEmail }}){% else %}—{% endif %}</strong></li>
+      <li><span>Status kepegawaian</span><strong>{{ employment.get(employee.employmentType or '', '—') }}</strong></li>
+      {% if employee.expiredDate %}<li><span>Tanggal terakhir bekerja</span><strong>{{ date_text(employee.expiredDate) }}</strong></li>{% endif %}
+      <li><span>Lokasi</span><strong>{{ locations.get(employee.locationType or '', '—') }}{% if employee.branchName %} — {{ employee.branchName }}{% endif %}</strong></li>
+      <li><span>Tertaut ke AD</span><strong>{{ 'Ya' if employee.objectGUID else 'Belum' }}</strong></li>
+    </ul>
+  </div>
+
+  <div class="card card-flush">
+    <h2 class="card-title pad">Riwayat pengajuan</h2>
+    {% if not history %}<p class="empty">Belum ada pengajuan.</p>{% else %}
+    <table class="table">
+      <thead><tr><th>Jenis</th><th>Status</th><th>Diajukan</th><th>Oleh</th></tr></thead>
+      <tbody>{% for r in history %}
+        <tr><td><a href="/pengajuan/{{ r.id }}">{{ TYPE_LABELS[r.type] }}</a></td><td>{{ STATUS_LABELS[r.status] }}</td>
+            <td>{{ r.createdAt | when }}</td><td>{{ r.requester.name }}</td></tr>
+      {% endfor %}</tbody>
+    </table>{% endif %}
+  </div>
+</section>
+{% endblock %}

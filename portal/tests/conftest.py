@@ -18,9 +18,15 @@ USERS = {
     "admin": ("admin12345", {"id": "admin", "username": "admin", "email": "admin@example.com",
                              "fullName": "akmalardhia", "department": "Human Capital",
                              "roles": ["SYSTEM_ADMIN", "HC_REQUESTER"]}),
+    "hc": ("hc12345678", {"id": "hc", "username": "hc", "email": "ayu.prameswari@example.com",
+                          "fullName": "Ayu Prameswari", "department": "Human Capital", "roles": ["HC_REQUESTER"]}),
+    "ops": ("ops1234567", {"id": "ops", "username": "ops", "email": "ops@example.com",
+                           "fullName": "Operator TI", "department": "IT", "roles": ["OPS_OPERATOR"]}),
     "bagus": ("bagus12345", {"id": "bagus", "username": "bagus", "email": "bagus@example.com",
                              "fullName": "Bagus Nugroho", "department": "IT", "roles": []}),
 }
+
+CISO_TEAM = "Rina CISO <rina.ciso@example.com>, Budi CISO <budi.ciso@example.com>"
 
 
 class FakeAd:
@@ -29,6 +35,8 @@ class FakeAd:
     def __init__(self) -> None:
         self.calls = 0
         self.down = False
+        self.directory = "demo"
+        self.groups: dict[str, list[dict]] = {}
 
     def login(self, username: str, password: str) -> LoginResult:
         self.calls += 1
@@ -40,17 +48,27 @@ class FakeAd:
         return LoginResult(code="INVALID_CREDENTIALS", message="Username atau kata sandi salah.")
 
     def health(self) -> dict:
-        return {"ok": True, "directory": "demo"}
+        return {"ok": True, "directory": self.directory}
+
+    def group_members(self, dn: str) -> list[dict]:
+        return list(self.groups.get(dn, []))
 
 
-def make_settings(tmp_path: Path, **overrides: str) -> Settings:
-    env = {
+def env_for(tmp_path: Path, **overrides: str) -> dict:
+    return {
         "AD_SERVICE_TOKEN": "a-service-token-of-24-chars",
         "HC_DATA_DIR": str(tmp_path),
         "APP_BASE_URL": "http://testserver",
+        "EMAIL_DRIVER": "file",
+        "EMAIL_FILE_DIR": str(tmp_path / "mail"),
+        "CISO_APPROVER_EMAILS": CISO_TEAM,
+        "DEMO_LOGIN": "on",
         **overrides,
     }
-    return Settings.from_env(env)
+
+
+def make_settings(tmp_path: Path, **overrides: str) -> Settings:
+    return Settings.from_env(env_for(tmp_path, **overrides))
 
 
 @pytest.fixture
@@ -61,7 +79,8 @@ def ad() -> FakeAd:
 @pytest.fixture
 def make_client(tmp_path, ad):
     def build(**overrides: str) -> TestClient:
-        app = create_app(make_settings(tmp_path, **overrides), ad)
+        env = env_for(tmp_path, **overrides)
+        app = create_app(Settings.from_env(env), ad, env=env, start_background=False)
         return TestClient(app, base_url="http://testserver", follow_redirects=False)
 
     return build

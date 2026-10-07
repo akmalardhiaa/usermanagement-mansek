@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Aktivitas{% endblock %}
+{% block content %}
+<section class="stack-lg">
+  <div><h1>Aktivitas</h1><p class="muted">Yang berubah di direktori: akun dibuat, dipindah, dinonaktifkan, sinkronisasi dari AD, export.</p></div>
+  <div class="card card-flush">
+    {% if not entries %}<p class="empty">Belum ada aktivitas.</p>{% else %}
+    <table class="table">
+      <thead><tr><th>Waktu</th><th>Oleh</th><th>Kejadian</th></tr></thead>
+      <tbody>{% for e in entries %}
+        <tr><td class="muted small">{{ e.at | when }}</td><td>{{ e.actor }}</td>
+            <td>{% if e.employeeId %}<a href="/karyawan/{{ e.employeeId }}">{{ e.detail }}</a>{% else %}{{ e.detail }}{% endif %}</td></tr>
+      {% endfor %}</tbody>
+    </table>{% endif %}
+  </div>
+</section>
+{% endblock %}

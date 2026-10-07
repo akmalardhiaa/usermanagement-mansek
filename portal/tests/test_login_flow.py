@@ -58,7 +58,7 @@ def test_the_phone_is_stored_only_once_a_code_from_it_is_right(client):
     assert right.status_code == 303
     assert SESSION_COOKIE in client.cookies
     assert client.app.state.mfa.count() == 1
-    assert "Selamat datang" in client.get("/").text
+    assert "Direktori Karyawan" in client.get("/").text
 
 
 def test_the_secret_is_sealed_on_disk(client, tmp_path):

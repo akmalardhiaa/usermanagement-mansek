@@ -30,6 +30,11 @@ CSP = "; ".join(
 )
 
 
+# The approval page alone: one script of our own, which posts the decision the
+# email link asked for. Still nothing inline and nothing from anywhere else.
+CSP_WITH_SCRIPT = CSP.replace("script-src 'none'", "script-src 'self'")
+
+
 def client_address(request: Request) -> str:
     """The last X-Forwarded-For entry (the hop nearest this server), else the socket."""
     forwarded = [part.strip() for part in request.headers.get("x-forwarded-for", "").split(",") if part.strip()]
@@ -91,7 +96,7 @@ class ProtectionMiddleware(BaseHTTPMiddleware):
         return response
 
     def _headers(self, response: Response) -> None:
-        response.headers["Content-Security-Policy"] = CSP
+        response.headers.setdefault("Content-Security-Policy", CSP)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         # same-origin, not no-referrer: under no-referrer a browser submits an

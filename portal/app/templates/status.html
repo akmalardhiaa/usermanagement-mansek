@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Status sistem{% endblock %}
+{% macro checklist(title, checks) %}
+<div class="card card-flush">
+  <h2 class="card-title pad">{{ title }}</h2>
+  <ul class="checks">
+    {% for c in checks %}
+    <li><div><strong>{{ c.name }}</strong><p class="muted small">{{ c.message }}</p></div>
+        <span class="badge badge-{{ {'ok':'ok','warn':'warn','fail':'danger','skip':'muted'}[c.status] }}">{{ {'ok':'OK','warn':'Perlu perhatian','fail':'Gagal','skip':'Dilewati'}[c.status] }}</span></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endmacro %}
+{% block content %}
+<section class="stack-lg">
+  <div class="page-head">
+    <div><h1>Status sistem</h1><p class="muted">Pemeriksaan hanya-baca untuk Active Directory, email, dan keamanan login.</p></div>
+    <a class="button button-ghost" href="/status">Periksa ulang</a>
+  </div>
+  {% if message %}<p class="alert alert-ok">{{ message }}</p>{% endif %}
+
+  {{ checklist('Active Directory', ad) }}
+  {{ checklist('Email & keamanan login', portal) }}
+
+  <div class="card">
+    <h2 class="card-title">Jalankan sekarang</h2>
+    <p class="muted small">Antrean email: {{ outbox.PENDING }} menunggu · {{ outbox.SENT }} terkirim · {{ outbox.DEAD }} gagal permanen.</p>
+    <form method="post" action="/status/jalankan" class="actions">
+      <button class="button button-secondary" name="apa" value="worker" type="submit">Jalankan worker</button>
+      <button class="button button-secondary" name="apa" value="email" type="submit">Kirim antrean email</button>
+      <button class="button button-secondary" name="apa" value="sinkron" type="submit">Sinkronkan dari AD</button>
+    </form>
+  </div>
+
+  <div class="card card-flush">
+    <h2 class="card-title pad">Catatan login terakhir</h2>
+    {% if not events %}<p class="empty">Belum ada catatan login.</p>{% else %}
+    <table class="table">
+      <thead><tr><th>Waktu</th><th>Akun</th><th>Kejadian</th><th>Dari</th></tr></thead>
+      <tbody>{% for e in events %}
+        <tr><td class="muted small">{{ e.at | when }}</td><td>{{ e.username or '—' }}</td>
+            <td>{{ e.type }}{% if e.detail %}<span class="muted small block">{{ e.detail }}</span>{% endif %}</td>
+            <td class="muted small">{{ e.ip or '—' }}</td></tr>
+      {% endfor %}</tbody>
+    </table>{% endif %}
+  </div>
+</section>
+{% endblock %}

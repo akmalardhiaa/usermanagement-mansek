@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Persetujuan{% endblock %}
+{% block content %}
+<section class="narrow">
+  <div class="card stack">
+    {% if ok %}
+      {% if decision == 'APPROVED' %}
+        <h1 class="card-title ok">Persetujuan tercatat</h1>
+        <p>Terima kasih. {% if item.status in ['QUEUED','SCHEDULED'] %}Semua tahap sudah setuju; perubahan sedang dijalankan ke Active Directory.
+           {% else %}Pengajuan diteruskan ke tim CISO.{% endif %}</p>
+      {% else %}
+        <h1 class="card-title danger">Penolakan tercatat</h1>
+        <p>Pengajuan ditolak dan HC menerima pemberitahuan. Tidak ada yang diubah di Active Directory.</p>
+      {% endif %}
+      <p class="muted small">Halaman ini boleh ditutup.</p>
+    {% else %}
+      <h1 class="card-title warn">Keputusan tidak disimpan</h1>
+      <p>{{ message }}</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

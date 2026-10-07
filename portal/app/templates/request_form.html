@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}{{ type_label }}{% endblock %}
+{% macro error(field) %}{% if errors.get(field) %}<span class="field-error">{{ errors[field] }}</span>{% endif %}{% endmacro %}
+{% macro text(field, label, kind='text', required=true, list=None, placeholder='', min=None, max=None) %}
+  <label class="field">
+    <span>{{ label }}{% if not required %} <em class="muted">(opsional)</em>{% endif %}</span>
+    <input name="{{ field }}" type="{{ kind }}" value="{{ values.get(field, '') }}" {{ 'required' if required }}
+           {% if list %}list="{{ list }}"{% endif %} {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
+           {% if min %}min="{{ min }}"{% endif %} {% if max %}max="{{ max }}"{% endif %}>
+    {{ error(field) }}
+  </label>
+{% endmacro %}
+{% macro select(field, label, options, required=true, empty='— pilih —') %}
+  <label class="field">
+    <span>{{ label }}{% if not required %} <em class="muted">(opsional)</em>{% endif %}</span>
+    <select name="{{ field }}" {{ 'required' if required }}>
+      <option value="">{{ empty }}</option>
+      {% for value, text in options %}<option value="{{ value }}" {{ 'selected' if values.get(field, '') == value }}>{{ text }}</option>{% endfor %}
+    </select>
+    {{ error(field) }}
+  </label>
+{% endmacro %}
+{% block content %}
+<section class="stack-lg">
+  <div>
+    <a class="small" href="{{ '/pengajuan/' ~ revising.id if revising else '/pengajuan/baru' }}">← Kembali</a>
+    <h1>{% if revising %}Revisi {{ type_label }}{% else %}{{ type_label }}{% endif %}</h1>
+    <p class="muted">Setelah dikirim, manager menerima email persetujuan, lalu tim CISO. Perubahan ke Active Directory baru
+      dijalankan setelah keduanya setuju.</p>
+  </div>
+  {% if errors.get('_') %}<p class="alert alert-error" role="alert">{{ errors['_'] }}</p>
+  {% elif errors %}<p class="alert alert-error" role="alert">Perbaiki isian yang ditandai.</p>{% endif %}
+
+  <datalist id="titles">{% for t in job_titles %}<option value="{{ t }}">{% endfor %}</datalist>
+  <form method="post" action="{{ action }}" class="card stack">
+    <input type="hidden" name="jenis" value="{{ slug }}">
+
+    {% if kind == 'ONBOARDING' %}
+      <div class="grid-2">
+        {{ text('firstName', 'Nama depan') }}
+        {{ text('lastName', 'Nama belakang') }}
+        {{ text('displayName', 'Nama lengkap') }}
+        {{ text('email', 'Email kantor', 'email') }}
+        {{ text('userId', 'User ID (nama login AD)', placeholder='mis. ayu.prameswari') }}
+        {{ text('jobTitle', 'Jabatan', list='titles') }}
+        {{ select('department', 'Departemen / divisi', departments | map('string') | zip_self) }}
+        {{ select('managerEmail', 'Manager', managers | map_manager) }}
+        {{ select('employmentType', 'Status kepegawaian', employment.items()) }}
+        {{ text('expiredDate', 'Tanggal terakhir bekerja (kontrak)', 'date', false, min=bounds.newContractEnd[0], max=bounds.newContractEnd[1]) }}
+        {{ select('locationType', 'Lokasi', locations.items()) }}
+        {{ text('branchName', 'Nama cabang (bila cabang)', required=false) }}
+        {{ text('startDate', 'Tanggal mulai', 'date', false, min=bounds.startDate[0], max=bounds.startDate[1]) }}
+        {{ select('accessProfileId', 'Profil akses', profiles | map_profile, false, '— mengikuti divisi —') }}
+      </div>
+      <label class="field"><span>Keterangan jabatan <em class="muted">(opsional)</em></span>
+        <textarea name="jobDescription" rows="3">{{ values.get('jobDescription', '') }}</textarea>{{ error('jobDescription') }}</label>
+
+    {% elif kind == 'MOVEMENT' %}
+      <div class="grid-2">
+        {{ select('employeeId', 'Karyawan', employees | map_employee) }}
+        {{ select('toDepartment', 'Departemen tujuan', departments | map('string') | zip_self) }}
+        {{ text('toJobTitle', 'Jabatan tujuan', list='titles') }}
+        {{ select('toManagerEmail', 'Manager tujuan', managers | map_manager) }}
+        {{ select('accessProfileId', 'Profil akses baru', profiles | map_profile, false, '— tidak berubah —') }}
+        {{ text('effectiveAt', 'Berlaku mulai', 'date', false, min=bounds.effectiveAt[0], max=bounds.effectiveAt[1]) }}
+      </div>
+      <label class="field"><span>Alasan <em class="muted">(opsional)</em></span>
+        <textarea name="reason" rows="3">{{ values.get('reason', '') }}</textarea>{{ error('reason') }}</label>
+
+    {% elif kind == 'TERMINATION' %}
+      <div class="grid-2">
+        {{ select('employeeId', 'Karyawan', employees | map_employee) }}
+        {{ text('lastWorkingDate', 'Tanggal terakhir bekerja', 'date', min=bounds.lastWorkingDate[0], max=bounds.lastWorkingDate[1]) }}
+        {{ select('reasonCategory', 'Kategori alasan', reasons.items(), false) }}
+        {{ text('handoverTo', 'Serah terima kepada', required=false) }}
+      </div>
+      <p class="muted small">Akun dinonaktifkan pagi hari setelah tanggal terakhir bekerja.</p>
+      <label class="field"><span>Catatan internal HC <em class="muted">(tidak dikirim lewat email)</em></span>
+        <textarea name="note" rows="3">{{ values.get('note', '') }}</textarea>{{ error('note') }}</label>
+
+    {% else %}
+      <div class="grid-2">
+        {{ select('employeeId', 'Karyawan', employees | map_employee) }}
+        {{ text('displayName', 'Nama lengkap') }}
+        {{ text('firstName', 'Nama depan') }}
+        {{ text('lastName', 'Nama belakang') }}
+        {{ text('jobTitle', 'Jabatan', list='titles') }}
+        {{ select('department', 'Departemen / divisi', departments | map('string') | zip_self) }}
+        {{ select('employmentType', 'Status kepegawaian', employment.items()) }}
+        {{ text('expiredDate', 'Tanggal terakhir bekerja (kontrak)', 'date', false, min=bounds.newContractEnd[0], max=bounds.newContractEnd[1]) }}
+        {{ select('locationType', 'Lokasi', locations.items()) }}
+        {{ text('branchName', 'Nama cabang (bila cabang)', required=false) }}
+      </div>
+      <label class="field"><span>Keterangan jabatan <em class="muted">(opsional)</em></span>
+        <textarea name="jobDescription" rows="2">{{ values.get('jobDescription', '') }}</textarea></label>
+      <label class="field"><span>Catatan HC <em class="muted">(internal)</em></span>
+        <textarea name="description" rows="2">{{ values.get('description', '') }}</textarea></label>
+    {% endif %}
+
+    <div><button class="button button-primary button-inline" type="submit">{{ 'Kirim revisi' if revising else 'Kirim pengajuan' }}</button></div>
+  </form>
+</section>
+{% endblock %}

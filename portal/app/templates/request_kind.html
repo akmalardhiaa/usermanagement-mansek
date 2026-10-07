@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Pengajuan baru{% endblock %}
+{% block content %}
+<section class="stack-lg">
+  <div><a class="small" href="/pengajuan">← Pengajuan</a><h1>Pengajuan baru</h1><p class="muted">Pilih jenis pengajuan.</p></div>
+  <div class="choices">
+    <a class="card choice" href="/pengajuan/baru?jenis=onboarding"><strong>Onboarding</strong><span class="muted small">Karyawan baru: akun dibuat di OU divisinya setelah disetujui.</span></a>
+    <a class="card choice" href="/pengajuan/baru?jenis=mutasi{{ '&karyawan=' ~ employee_id if employee_id }}"><strong>Mutasi</strong><span class="muted small">Pindah divisi, jabatan, atau manager; akun ikut pindah OU.</span></a>
+    <a class="card choice" href="/pengajuan/baru?jenis=profil{{ '&karyawan=' ~ employee_id if employee_id }}"><strong>Ubah profil</strong><span class="muted small">Nama, jabatan, status kepegawaian, lokasi.</span></a>
+    <a class="card choice" href="/pengajuan/baru?jenis=resign{{ '&karyawan=' ~ employee_id if employee_id }}"><strong>Resign / termination</strong><span class="muted small">Akun dinonaktifkan dan dipindah ke OU karantina.</span></a>
+  </div>
+</section>
+{% endblock %}

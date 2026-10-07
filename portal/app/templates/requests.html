@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Pengajuan{% endblock %}
+{% block content %}
+<section class="stack-lg">
+  <div class="page-head">
+    <div>
+      <h1>Pengajuan</h1>
+      <p class="muted">Onboarding, mutasi, resign, dan perubahan profil — disetujui manager lalu tim CISO lewat email.</p>
+    </div>
+    {% if can('request.create') %}<a class="button button-primary button-inline" href="/pengajuan/baru">+ Pengajuan baru</a>{% endif %}
+  </div>
+
+  <form class="toolbar" method="get" action="/pengajuan">
+    <select name="jenis" aria-label="Jenis">
+      <option value="">Semua jenis</option>
+      {% for slug, kind in kinds.items() %}<option value="{{ slug }}" {{ 'selected' if jenis == slug }}>{{ TYPE_LABELS[kind] }}</option>{% endfor %}
+    </select>
+    <select name="status" aria-label="Status">
+      {% for key, label in [('aktif','Berjalan'),('gagal','Gagal'),('selesai','Selesai'),('ditutup','Ditolak / dibatalkan'),('semua','Semua')] %}
+      <option value="{{ key }}" {{ 'selected' if group == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="button button-secondary" type="submit">Terapkan</button>
+  </form>
+
+  <div class="card card-flush">
+    {% if not requests %}<p class="empty">Tidak ada pengajuan.</p>{% else %}
+    <table class="table">
+      <thead><tr><th>Jenis</th><th>Karyawan</th><th>Status</th><th>Pemohon</th><th>Diperbarui</th></tr></thead>
+      <tbody>{% for r in requests %}
+        <tr>
+          <td><a href="/pengajuan/{{ r.id }}"><strong>{{ TYPE_LABELS[r.type] }}</strong></a></td>
+          <td>{{ r.subject.displayName }}<span class="muted small block">{{ r.subject.department or '' }}</span></td>
+          <td><span class="badge badge-{{ 'ok' if r.status == 'COMPLETED' else ('danger' if r.status in ['FAILED','REJECTED'] else ('muted' if r.status in ['CANCELLED','EXPIRED'] else 'warn')) }}">{{ STATUS_LABELS[r.status] }}</span></td>
+          <td>{{ r.requester.name }}</td>
+          <td class="muted small">{{ r.updatedAt | when }}</td>
+        </tr>
+      {% endfor %}</tbody>
+    </table>{% endif %}
+  </div>
+  {% if total > requests | length %}<p class="muted small">Menampilkan {{ requests | length }} dari {{ total }}. Persempit dengan filter.</p>{% endif %}
+</section>
+{% endblock %}

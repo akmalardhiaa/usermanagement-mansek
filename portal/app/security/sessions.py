@@ -120,6 +120,30 @@ class SessionStore:
 
         mutate_json(self._path, _empty, touch)
 
+    def live_users(self, now: float | None = None) -> dict[str, dict]:
+        """Everybody signed in right now, with the roles their sessions carry."""
+        now = time.time() if now is None else now
+        users: dict[str, dict] = {}
+        for record in read_json(self._path, _empty)["sessions"]:
+            if _live(record, now) and record["roles"]:
+                users[record["userId"]] = {"username": record["username"], "roles": record["roles"]}
+        return users
+
+    def revoke_user(self, user_id: str, reason: str) -> int:
+        """Ends every session a person holds."""
+        now = time.time()
+
+        def revoke(data: dict) -> int:
+            count = 0
+            for record in data["sessions"]:
+                if record["userId"] == user_id and _live(record, now):
+                    record["revokedAt"] = now
+                    record["revokedReason"] = reason
+                    count += 1
+            return count
+
+        return mutate_json(self._path, _empty, revoke)
+
     def revoke(self, session_id: str | None, reason: str = "logout") -> None:
         if not session_id:
             return
