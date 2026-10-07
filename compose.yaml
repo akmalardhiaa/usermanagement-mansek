@@ -1,0 +1,54 @@
+# The portal on a laptop or PC, built from the source in this folder.
+#
+#   podman compose up -d --build        (or double-click jalankan-podman.bat)
+#
+# Then open http://localhost:3000. Settings come from .env.dev.local (copy
+# .env.example; jalankan-podman.bat makes one with fresh secrets on the first
+# run). The office runs compose.production.yml instead.
+
+name: hc
+
+services:
+  portal:
+    build:
+      context: ./portal
+      dockerfile: Containerfile
+    image: hc-portal:latest
+    container_name: hc-portal
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - .env.dev.local
+    environment:
+      AD_SERVICE_URL: http://ad-service:8081
+      APP_BASE_URL: http://localhost:3000
+    volumes:
+      - hc-dev-data:/app/data
+    # Declared here: Podman builds OCI images, and OCI drops HEALTHCHECK.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3000/healthz', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - ad-service
+    restart: unless-stopped
+
+  # No ports: reachable only from the portal, inside this network.
+  ad-service:
+    build:
+      context: ./ad-service
+      dockerfile: Containerfile
+    image: hc-ad-service:latest
+    container_name: hc-ad-service
+    env_file:
+      - .env.dev.local
+    volumes:
+      # The company CA, read-only, when AD is configured.
+      - ./certs:/run/certs:ro
+    restart: unless-stopped
+
+volumes:
+  hc-dev-data:
+    name: hc-dev-data

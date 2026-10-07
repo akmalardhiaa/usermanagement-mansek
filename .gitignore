@@ -1,0 +1,29 @@
+# Settings with secrets stay on the machine that uses them. Only the template
+# is committed (deploy/windows/env.production.example is not a dot-file, so it
+# is not caught here).
+.env*
+!.env.example
+
+# Certificates and keys: the company CA goes in certs\, never in git.
+*.pem
+
+# The portal's data on a PC that runs it without containers, and backups.
+/data
+/backups
+/logs
+
+# Python portal and Java AD service build output
+/portal/.venv/
+__pycache__/
+.pytest_cache/
+/ad-service/target/
+
+# Images exported for the office (podman save)
+*.tar
+*.tar.gz
+
+.DS_Store
+
+# Leftovers of the earlier Node.js version, if they are still on disk.
+/node/
+/node_modules/
