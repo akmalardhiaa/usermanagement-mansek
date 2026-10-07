@@ -1,0 +1,133 @@
+/* HC portal — the same palette as before, without a build step. Dark by default,
+   light when the computer asks for it. No animation: nothing here needs to move. */
+
+:root {
+  --canvas: #071321;
+  --surface: #0c1e36;
+  --elevated: #112a4b;
+  --hairline: #173d6e;
+  --hairline-strong: #25528d;
+  --ink: #ebf1f9;
+  --ink-muted: #a2b5cd;
+  --ink-faint: #7389a5;
+  --accent: #fdb713;
+  --accent-ink: #071321;
+  --warn: #fb923c;
+  --danger: #fb7185;
+  --ok: #34d399;
+  --radius: 16px;
+  --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --canvas: #f6f3eb;
+    --surface: #fdfbf7;
+    --elevated: #eee8dc;
+    --hairline: #e3dccb;
+    --hairline-strong: #cabaa3;
+    --ink: #142030;
+    --ink-muted: #4a5c73;
+    --ink-faint: #60738c;
+    --warn: #b23c0a;
+    --danger: #be123c;
+    --ok: #047857;
+    color-scheme: light;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--canvas);
+  color: var(--ink);
+  font: 15px/1.55 var(--font);
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font-family: var(--mono); font-size: 0.92em; }
+h1 { margin: 0.4rem 0 0.25rem; font-size: 1.85rem; letter-spacing: -0.01em; }
+
+.muted { color: var(--ink-muted); }
+.small { font-size: 0.82rem; }
+.center { text-align: center; }
+
+/* --- layout ---------------------------------------------------------------- */
+.topbar { position: sticky; top: 0; z-index: 10; background: var(--canvas); border-bottom: 1px solid var(--hairline); }
+.topbar-inner { max-width: 72rem; margin: 0 auto; padding: 0.85rem 1.25rem; display: flex; align-items: center; gap: 1rem; }
+.brand { display: flex; align-items: center; gap: 0.6rem; color: var(--ink); font-weight: 600; }
+.brand:hover { text-decoration: none; opacity: 0.85; }
+.brand-mark {
+  display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 10px;
+  background: var(--accent); color: var(--accent-ink); font-size: 0.8rem; font-weight: 700;
+}
+.page { max-width: 72rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+.stack { display: grid; gap: 1rem; }
+.stack-lg { display: grid; gap: 1.75rem; }
+
+/* --- cards and auth -------------------------------------------------------- */
+.card { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 1.5rem; }
+.card-title { margin: 0 0 0.5rem; font-size: 1.15rem; }
+.auth { max-width: 26rem; margin: 2rem auto 0; display: grid; gap: 1.5rem; }
+.auth-card { padding: 1.75rem; border-color: var(--hairline-strong); }
+.pill {
+  display: inline-block; padding: 0.2rem 0.75rem; border-radius: 999px; font-size: 0.75rem;
+  border: 1px solid var(--hairline); color: var(--accent);
+}
+.divider { border-top: 1px solid var(--hairline); padding-top: 1rem; margin: 1.25rem 0 0; }
+
+/* --- forms ----------------------------------------------------------------- */
+.field { display: grid; gap: 0.35rem; font-size: 0.88rem; color: var(--ink-muted); }
+.field input {
+  width: 100%; padding: 0.7rem 0.85rem; border-radius: 10px; font: inherit; font-size: 0.95rem;
+  color: var(--ink); background: var(--canvas); border: 1px solid var(--hairline-strong);
+}
+.field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.button {
+  display: inline-flex; justify-content: center; align-items: center; gap: 0.4rem;
+  padding: 0.7rem 1.1rem; border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer;
+  border: 1px solid transparent;
+}
+.button-primary { background: var(--accent); color: var(--accent-ink); width: 100%; }
+.button-primary:hover { filter: brightness(1.06); }
+.button-ghost { background: transparent; color: var(--ink-muted); border-color: var(--hairline); padding: 0.4rem 0.8rem; font-weight: 500; }
+.button-ghost:hover { color: var(--danger); border-color: var(--danger); }
+
+/* --- messages -------------------------------------------------------------- */
+.alert { margin: 0 0 1rem; padding: 0.75rem 0.9rem; border-radius: 10px; font-size: 0.9rem; }
+.alert-error { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); }
+.note { margin-top: 1.25rem; padding: 0.85rem 1rem; border-radius: 12px; font-size: 0.86rem; }
+.note p { margin: 0.35rem 0 0; color: var(--ink-muted); }
+.note-warn { border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.note-warn strong { color: var(--warn); }
+
+/* --- two-step verification ------------------------------------------------- */
+.steps { margin: 0.75rem 0; padding-left: 1.2rem; color: var(--ink-muted); font-size: 0.9rem; }
+.qr { display: flex; justify-content: center; margin: 1rem 0; }
+.qr img { background: #fff; border-radius: 12px; padding: 6px; }
+.secret {
+  font-family: var(--mono); letter-spacing: 0.08em; word-break: break-all; user-select: all;
+  padding: 0.6rem 0.75rem; border-radius: 10px; border: 1px solid var(--hairline); background: var(--canvas); margin: 0.25rem 0;
+}
+
+/* --- header user and home -------------------------------------------------- */
+.header-user { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }
+.header-user form { margin: 0; }
+.avatar {
+  display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+  color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.who { display: grid; line-height: 1.2; text-align: right; }
+.facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.facts li { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--hairline); padding-bottom: 0.6rem; }
+.facts li:last-child { border-bottom: 0; padding-bottom: 0; }
+
+@media (max-width: 40rem) {
+  .who { display: none; }
+  h1 { font-size: 1.5rem; }
+}

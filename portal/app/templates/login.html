@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Masuk{% endblock %}
+{% block content %}
+<section class="auth">
+  <div class="auth-intro">
+    <span class="pill">User Management</span>
+    <h1>Masuk Portal</h1>
+    <p class="muted">Silakan masukkan kredensial akun Human Capital Anda.</p>
+  </div>
+
+  <div class="card auth-card">
+    {% if error %}<p class="alert alert-error" role="alert">{{ error }}</p>{% endif %}
+
+    <form method="post" action="/login" class="stack">
+      <label class="field">
+        <span>Username</span>
+        <input name="username" value="{{ username }}" placeholder="nama.pengguna atau email"
+               autocomplete="username" autofocus required>
+      </label>
+      <label class="field">
+        <span>Kata sandi</span>
+        <input name="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+      </label>
+      <button class="button button-primary" type="submit">Masuk</button>
+    </form>
+
+    {% if demo %}
+    <div class="note note-warn">
+      <strong>Mode demo — Active Directory belum tersambung</strong>
+      <p>Masuk sebagai <code>admin</code> dengan kata sandi <code>admin12345</code>. Portal ini hanya untuk
+         Human Capital: manager dan tim CISO menyetujui dari email, bukan dari sini.</p>
+    </div>
+    {% else %}
+    <p class="muted small divider">Masuk dengan akun Active Directory Anda.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
