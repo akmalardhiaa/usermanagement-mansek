@@ -324,6 +324,7 @@ pertama kali dengan kata sandinya setelah reset akan mendaftarkan HP-nya.
 | "Akun dikunci sementara" | 5 kali salah dalam 15 menit. Tunggu 15 menit. Ini hanya di portal; login Windows tidak terpengaruh. |
 | "Verifikasi 2 langkah akun ini perlu diatur ulang" | `OUTBOX_ENCRYPTION_KEY` berubah. Kembalikan nilai lama, atau reset 2FA semua orang. |
 | "Server Active Directory tidak bisa dihubungi" | *Status sistem* dan `podman logs hc-ad-service`: biasanya CA, nama host DC, atau DNS. Uji DNS: `podman exec hc-ad-service getent hosts <nama-host-dc>`. |
+| `hc-ad-service` berhenti atau restart terus | `podman logs hc-ad-service --tail 30`. Di production layanan AD menolak menyala bila pengaturan wajib kurang, dan menyebut kuncinya, misalnya "AD_LDAP_URL/LDAP_URL wajib diisi di production". Lengkapi `.env.production.local`, lalu `podman compose -f compose.production.yml up -d`. |
 | *Status sistem*: "Layanan AD tidak menjawab" | Container `hc-ad-service` mati, atau `AD_SERVICE_TOKEN` tidak sama di kedua container (keduanya membaca berkas yang sama, jadi biasanya karena container lama). `podman compose -f compose.production.yml up -d`. |
 | "Portal ini hanya untuk tim Human Capital" | Akun bukan anggota `AD_GROUP_HC`/`AD_GROUP_ADMIN`. Minta IT menambahkan ke group. |
 | Email tidak sampai | *Status sistem* → *Pengiriman email* dan *Antrean email* menyebut penyebabnya (login ditolak, relay menolak, TLS). Antrean menunggu sampai pengaturan diperbaiki; tidak ada email yang hilang. |
