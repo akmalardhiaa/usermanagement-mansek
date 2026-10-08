@@ -1,87 +1,141 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, page_header, lifecycle_badge, type_badge %}
 {% block title %}{{ TYPE_LABELS[item.type] }} — {{ item.subject.displayName }}{% endblock %}
+{% set AUDIT_LABELS = {
+  "request.drafted": "Draf dibuat", "request.submitted": "Dikirim ke approver", "request.approved": "Disetujui",
+  "request.rejected": "Ditolak", "request.revised": "Direvisi", "request.cancelled": "Dibatalkan",
+  "request.queued": "Masuk antrean eksekusi", "request.scheduled": "Dijadwalkan",
+  "execution.claimed": "Worker mulai menjalankan", "execution.completed": "Selesai dijalankan di AD",
+  "execution.failed": "Eksekusi gagal", "execution.lease_expired": "Worker berhenti tanpa laporan",
+  "execution.retry_requested": "Diminta jalan ulang"
+} %}
+{% set STEP_LABELS = {
+  "create-account": "Membuat akun dalam keadaan nonaktif", "set-attributes": "Mengisi atribut dan manager",
+  "grant-groups": "Menambahkan group akses", "revoke-groups": "Mencabut group lama", "move-ou": "Memindahkan ke OU tujuan",
+  "verify": "Membaca ulang hasil dari direktori", "enable-account": "Mengaktifkan akun", "disable-account": "Menonaktifkan akun"
+} %}
 {% block content %}
-<section class="stack-lg">
-  <div class="page-head">
-    <div>
-      <a class="small" href="/pengajuan">← Pengajuan</a>
-      <h1>{{ TYPE_LABELS[item.type] }} — {{ item.subject.displayName }}</h1>
-      <p class="muted">Diajukan {{ item.requester.name }} · {{ item.createdAt | when }} · versi {{ item.version }}</p>
-    </div>
-    <span class="badge badge-lg badge-{{ 'ok' if item.status == 'COMPLETED' else ('danger' if item.status in ['FAILED','REJECTED'] else ('muted' if item.status in ['CANCELLED','EXPIRED'] else 'warn')) }}">{{ STATUS_LABELS[item.status] }}</span>
+<div class="stack">
+  <a class="back-link" href="/pengajuan">{{ icon('arrow-left') }}Kembali ke daftar pengajuan</a>
+  {% call page_header(eyebrow='Pengajuan', title=item.subject.displayName, badge=type_badge(item.type), compact=true,
+                      description='Diajukan ' ~ item.requester.name ~ ' pada ' ~ (item.createdAt | when) ~ ((' · versi ' ~ item.version) if item.version > 1 else '')) %}
+    <span class="status status-lg status-{{ {'COMPLETED':'ok','FAILED':'danger','REJECTED':'danger','CANCELLED':'muted','EXPIRED':'muted','DRAFT':'muted','PENDING_MANAGER':'warn','PENDING_CISO':'warn'}.get(item.status, 'info') }}">{{ STATUS_LABELS[item.status] }}</span>
+  {% endcall %}
+
+  {% if sent %}<div class="notice notice-ok"><p>Pengajuan terkirim. Manager menerima email persetujuan sekarang; setelah itu tim CISO.</p></div>{% endif %}
+  {% if message %}<div class="notice notice-ok"><p>{{ message }}</p></div>{% endif %}
+  {% if error %}<div class="notice notice-error"><p>{{ error }}</p></div>{% endif %}
+
+  {% if item.status in ['APPROVED', 'QUEUED', 'SCHEDULED', 'FAILED'] %}
+  <div class="notice notice-info">
+    <p>{% if item.status == 'FAILED' %}Eksekusi berhenti sebelum selesai. Akun berada pada keadaan yang tercatat di bawah — periksa dulu sebelum mencoba lagi.
+       {% elif item.status == 'SCHEDULED' %}Sah dan menunggu waktu efektif{% if item.effectiveAt %} ({{ item.effectiveAt | when }}){% endif %}. Belum ada perubahan pada akun.
+       {% else %}Kedua persetujuan sudah masuk dan perubahan ini sah. Akun masih dalam keadaan semula sampai worker menjalankannya.{% endif %}</p>
+    {% if can('execution.run') %}
+      {% if item.status == 'FAILED' %}
+      <form method="post" action="/pengajuan/{{ item.id }}/ulang" class="actions">
+        {% if job and job.errorCode == 'LEASE_EXPIRED' %}
+        <label class="check"><input type="checkbox" name="rekonsiliasi" value="ya"> Sudah saya bandingkan dengan direktori</label>
+        {% endif %}
+        <button class="button button-secondary sm" type="submit">{{ icon('sync') }}Coba jalankan lagi</button>
+      </form>
+      {% else %}
+      <form method="post" action="/status/jalankan" class="actions">
+        <input type="hidden" name="apa" value="worker"><input type="hidden" name="kembali" value="/pengajuan/{{ item.id }}">
+        <button class="button button-secondary sm" type="submit">{{ icon('play') }}Jalankan worker</button>
+      </form>
+      {% endif %}
+    {% endif %}
   </div>
+  {% endif %}
 
-  {% if sent %}<p class="alert alert-ok">Pengajuan dikirim. Manager menerima email persetujuan sekarang.</p>{% endif %}
-  {% if message %}<p class="alert alert-ok">{{ message }}</p>{% endif %}
-  {% if error %}<p class="alert alert-error">{{ error }}</p>{% endif %}
+  <div class="detail-grid">
+    <div class="stack">
+      <section class="card pad-sm">
+        <h2 class="card-title">Isi pengajuan</h2>
+        <p class="card-sub">Dikunci sejak dikirim. Sidik jari: <span class="mono">{{ (item.payloadHash or '')[:16] or '—' }}</span></p>
+        <dl class="facts mt-4">
+          {% for label, value in rows %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+          {% if item.effectiveAt and item.type != 'ONBOARDING' %}<div><dt>Waktu efektif</dt><dd>{{ item.effectiveAt | when }}</dd></div>{% endif %}
+        </dl>
+      </section>
 
-  <div class="grid-2 align-start">
-    <div class="card">
-      <h2 class="card-title">Isi pengajuan</h2>
-      <ul class="facts">
-        {% for label, value in rows %}<li><span>{{ label }}</span><strong>{{ value }}</strong></li>{% endfor %}
-        {% if item.effectiveAt and item.type != 'ONBOARDING' %}<li><span>Berlaku</span><strong>{{ item.effectiveAt | when }}</strong></li>{% endif %}
-      </ul>
+      {% if job %}
+      <section class="card pad-sm">
+        <div class="card-head">
+          <h2 class="card-title">Eksekusi di Active Directory</h2>
+          <span class="small faint">Percobaan ke-{{ job.attempt }}</span>
+        </div>
+        <ul class="exec-steps">
+          {% for step in job.steps %}
+          <li class="{{ 'done' if step.state == 'DONE' else 'failed' }}">
+            <span class="mark">{{ icon('check' if step.state == 'DONE' else 'close') }}</span>
+            <span>{{ STEP_LABELS.get(step.stepKey, step.stepKey) }} — <span class="{{ 'ok' if step.state == 'DONE' else 'danger' }}">{{ 'Selesai' if step.state == 'DONE' else 'Gagal' }}</span></span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% if job.errorMessage %}<div class="notice notice-error mt-3"><p>{{ job.errorMessage }}</p></div>{% endif %}
+      </section>
+      {% endif %}
+
+      <section class="card pad-sm">
+        <h2 class="card-title">Jejak audit</h2>
+        {% if not trail %}<p class="card-sub">Belum ada peristiwa tercatat.</p>{% else %}
+        <ol class="timeline">
+          {% for e in trail %}
+          <li><strong>{{ AUDIT_LABELS.get(e.action, e.action) }}</strong><span>{{ e.actorName }} · {{ e.at | when }}{% if e.source == 'EMAIL' %} · dari email{% endif %}</span></li>
+          {% endfor %}
+        </ol>
+        {% endif %}
+      </section>
     </div>
 
     <div class="stack">
-      <div class="card">
+      <section class="card pad">
         <h2 class="card-title">Persetujuan</h2>
-        {% if not item.approvals %}<p class="muted">Belum dikirim.</p>{% endif %}
-        <ol class="timeline">
-          {% for step in item.approvals if step.version == item.version %}
-          <li class="{{ 'done' if step.decision == 'APPROVED' else ('rejected' if step.decision == 'REJECTED' else '') }}">
-            <strong>{{ 'Manager' if step.stage == 'MANAGER' else 'Tim CISO' }}</strong>
-            <span class="muted small">
-              {% if step.decision %}{{ 'Disetujui' if step.decision == 'APPROVED' else 'Ditolak' }} oleh {{ step.decidedBy.name }} · {{ step.decidedAt | when }}
-              {% elif step.pool %}Menunggu salah satu dari: {{ step.pool | map(attribute='name') | join(', ') }}
-              {% else %}Menunggu {{ step.approver.name }} ({{ step.approver.email }}){% endif %}
-            </span>
+        {% set steps_now = item.approvals | selectattr('version', 'equalto', item.version) | list %}
+        {% if not steps_now %}<p class="card-sub">Belum dirutekan — pengajuan masih berupa draf.</p>{% endif %}
+        <ol class="stages">
+          {% for step in steps_now %}
+          <li>
+            <p class="stage-label">{{ '1. Manager' if step.stage == 'MANAGER' else '2. Tim CISO' }}</p>
+            <p class="stage-name">{{ step.approver.name }}</p>
+            {% if step.pool %}
+              {% for member in step.pool %}<p class="stage-mail">{{ member.name ~ ' · ' if member.name != member.email }}{{ member.email }}</p>{% endfor %}
+            {% else %}
+              <p class="stage-mail">{{ step.approver.email }}</p>
+            {% endif %}
+            {% if step.decision %}
+              <p class="stage-state {{ 'ok' if step.decision == 'APPROVED' else 'danger' }}">{{ 'Disetujui' if step.decision == 'APPROVED' else 'Ditolak' }}{% if step.decidedBy %} oleh {{ step.decidedBy.name }}{% endif %} · {{ step.decidedAt | when }}</p>
+            {% else %}
+              <p class="stage-state faint">{{ 'Menunggu — keputusan pertama dari anggota tim yang berlaku' if step.pool else 'Belum memutuskan' }}</p>
+            {% endif %}
           </li>
           {% endfor %}
         </ol>
-      </div>
+      </section>
 
-      {% if job %}
-      <div class="card">
-        <h2 class="card-title">Eksekusi di Active Directory</h2>
-        <ul class="facts">
-          {% for step in job.steps %}
-          <li><span>{{ step.stepKey }}</span><strong class="{{ 'ok' if step.state == 'DONE' else 'danger' }}">{{ 'Selesai' if step.state == 'DONE' else 'Gagal' }}</strong></li>
-          {% endfor %}
-        </ul>
-        {% if job.errorMessage %}<p class="alert alert-error">{{ job.errorMessage }}</p>{% endif %}
-        <p class="muted small">Percobaan ke-{{ job.attempt }}.</p>
-      </div>
-      {% endif %}
-
-      <div class="actions">
-        {% if item.status in ['DRAFT','PENDING_MANAGER','PENDING_CISO'] and is_requester %}
-          <a class="button button-secondary" href="/pengajuan/{{ item.id }}/revisi">Revisi</a>
+      <section class="card pad">
+        <h2 class="card-title">Rincian</h2>
+        <dl class="facts facts-mono mt-3">
+          <div><dt>Nomor</dt><dd>{{ item.id }}</dd></div>
+          <div><dt>Versi</dt><dd>{{ item.version }}</dd></div>
+          <div><dt>Waktu efektif</dt><dd>{{ (item.effectiveAt | when) if item.effectiveAt and item.type != 'ONBOARDING' else 'Segera' }}</dd></div>
+          {% if item.closedReason %}<div><dt>Alasan penutupan</dt><dd>{{ item.closedReason }}</dd></div>{% endif %}
+        </dl>
+        {% if item.status in ['DRAFT','PENDING_MANAGER','PENDING_CISO'] and is_requester and can('request.create') %}
+        <div class="side-section">
+          <a class="button button-secondary" href="/pengajuan/{{ item.id }}/revisi">{{ icon('edit') }}Revisi pengajuan</a>
+          <p class="small faint">Revisi membatalkan persetujuan yang sudah ada dan otomatis mengirim email persetujuan baru ke manager.</p>
+        </div>
         {% endif %}
         {% if item.status in ['DRAFT','PENDING_MANAGER','PENDING_CISO','APPROVED','SCHEDULED','QUEUED'] and is_requester and can('request.cancel') %}
-          <form method="post" action="/pengajuan/{{ item.id }}/batal"><button class="button button-danger-ghost" type="submit">Batalkan</button></form>
+        <div class="side-section">
+          <form method="post" action="/pengajuan/{{ item.id }}/batal"><button class="button button-danger" type="submit">{{ icon('x-circle') }}Batalkan pengajuan</button></form>
+        </div>
         {% endif %}
-        {% if item.status == 'FAILED' and can('execution.run') %}
-          <form method="post" action="/pengajuan/{{ item.id }}/ulang" class="inline-form">
-            {% if job and job.errorCode == 'LEASE_EXPIRED' %}
-            <label class="check"><input type="checkbox" name="rekonsiliasi" value="ya"> Sudah saya bandingkan dengan direktori</label>
-            {% endif %}
-            <button class="button button-primary button-inline" type="submit">Coba lagi</button>
-          </form>
-        {% endif %}
-      </div>
+      </section>
     </div>
   </div>
-
-  <div class="card card-flush">
-    <h2 class="card-title pad">Jejak audit</h2>
-    <table class="table">
-      <thead><tr><th>Waktu</th><th>Oleh</th><th>Kejadian</th><th>Sumber</th></tr></thead>
-      <tbody>{% for e in trail %}
-        <tr><td class="muted small">{{ e.at | when }}</td><td>{{ e.actorName }}</td><td>{{ e.action }}</td><td class="muted small">{{ e.source }}</td></tr>
-      {% endfor %}</tbody>
-    </table>
-  </div>
-</section>
+</div>
 {% endblock %}

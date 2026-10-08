@@ -1,76 +1,178 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, page_header, employee_badge, empty_state %}
 {% block title %}Direktori{% endblock %}
+{% macro sort_header(key, label) -%}
+  {%- set sorted = query.urut == key -%}
+  {%- set next_dir = 'turun' if sorted and query.arah == 'naik' else 'naik' -%}
+  <a href="/?{{ base_query | items_to_query(urut=key, arah=next_dir) }}" class="{{ 'sorted' if sorted }}{{ ' desc' if sorted and query.arah == 'turun' }}">{{ label }}{{ icon('arrow-up') }}</a>
+{%- endmacro %}
+{% macro stat_card(key, label, value, caption, icon_name, tone='', ring='') -%}
+  {%- set selected = (query.status == key) -%}
+  {%- set target = '' if (selected and key) else key -%}
+  <a class="stat{{ ' selected' if selected }}{{ (' ring-' ~ ring) if ring }}" href="/{{ ('?status=' ~ target) if target }}"{% if selected %} aria-current="true"{% endif %}>
+    <span class="stat-head"><span class="stat-label">{{ label }}</span>{{ icon(icon_name) }}</span>
+    <p class="stat-value{{ (' tone-' ~ tone) if tone }}">{{ value }}</p>
+    <p class="stat-caption">{{ caption }}</p>
+  </a>
+{%- endmacro %}
 {% block content %}
-<section class="stack-lg">
-  <div class="page-head">
-    <div>
-      <span class="pill">Human Capital Platform</span>
-      <h1>Direktori Karyawan</h1>
-      <p class="muted">Diisi otomatis dari Active Directory. Perubahan diajukan lewat pengajuan dan disetujui manager &amp; CISO.</p>
-    </div>
-    {% if can('request.create') %}<a class="button button-primary button-inline" href="/pengajuan/baru?jenis=onboarding">+ Onboarding</a>{% endif %}
-  </div>
+<div class="stack">
+  {% set title %}<span class="page-header-title"><span>Direktori Karyawan</span><span class="shimmer">&amp; User Management</span></span>{% endset %}
+  {% set badge %}<span class="brand-pill"><span class="shimmer">User Management</span></span>{% endset %}
+  {% call page_header(eyebrow='Human Capital Platform', title=title, badge=badge,
+                      description='Portal terpadu direktori karyawan dan pengelolaan izin akses, dengan login Active Directory.') %}
+    {% if can('request.create') %}<a class="button button-primary" href="/pengajuan/baru?jenis=onboarding">{{ icon('user-plus') }}Tambah karyawan</a>{% endif %}
+  {% endcall %}
+
+  {% if message %}<div class="notice notice-ok"><p>{{ message }}</p></div>{% endif %}
 
   <div class="stats">
-    <a class="stat" href="/?status=aktif"><span class="stat-value">{{ stats.active }}</span><span class="muted small">Karyawan aktif</span></a>
-    <a class="stat" href="/?status=nonaktif"><span class="stat-value">{{ stats.disabled }}</span><span class="muted small">Nonaktif</span></a>
-    <a class="stat" href="/pengajuan"><span class="stat-value">{{ stats.pending }}</span><span class="muted small">Pengajuan berjalan</span></a>
-    <div class="stat"><span class="stat-value">{{ stats.new }}</span><span class="muted small">Baru 30 hari terakhir</span></div>
+    {{ stat_card('', 'Total karyawan', stats.total, 'Seluruh direktori', 'directory') }}
+    {{ stat_card('aktif', 'Aktif', stats.active, 'Akses berjalan normal', 'check', 'ok', 'ok') }}
+    {{ stat_card('pengajuan', 'Ada pengajuan', stats.pending, 'Perubahan yang belum dijalankan', 'approvals', 'warn', 'warn') }}
+    {{ stat_card('nonaktif', 'Nonaktif', stats.disabled, 'Akun tidak berjalan', 'power', 'muted') }}
   </div>
 
-  <form class="toolbar" method="get" action="/">
-    <input type="search" name="q" value="{{ query.q or '' }}" placeholder="Cari nama, email, jabatan, divisi" aria-label="Cari">
-    <select name="departemen" aria-label="Divisi">
-      <option value="">Semua divisi</option>
-      {% for d in departments %}<option value="{{ d }}" {{ 'selected' if query.departemen == d }}>{{ d }}</option>{% endfor %}
-    </select>
-    <select name="status" aria-label="Status">
-      <option value="aktif" {{ 'selected' if (query.status or 'aktif') == 'aktif' }}>Aktif</option>
-      <option value="nonaktif" {{ 'selected' if query.status == 'nonaktif' }}>Nonaktif</option>
-      <option value="semua" {{ 'selected' if query.status == 'semua' }}>Semua</option>
-    </select>
-    <select name="urut" aria-label="Urutkan">
-      {% for key, label in [('nama','Nama'),('departemen','Divisi'),('jabatan','Jabatan'),('status','Status')] %}
-      <option value="{{ key }}" {{ 'selected' if (query.urut or 'nama') == key }}>Urut: {{ label }}</option>
+  {% if onboardings %}
+  <section class="card pad">
+    <div class="card-head">
+      <div>
+        <h2 class="card-title actions">{{ icon('user-plus') }}Karyawan baru dalam proses <span class="count-pill">{{ onboardings | length }}</span></h2>
+        <p class="card-sub">Tampil begitu diajukan. Akunnya belum ada — masuk ke tabel direktori setelah kedua persetujuan selesai dan akun dibuat di AD.</p>
+      </div>
+      {% set ready = onboardings | selectattr('ready') | list | length %}
+      {% if can('execution.run') and ready %}
+      <form method="post" action="/status/jalankan" class="actions">
+        <input type="hidden" name="apa" value="worker"><input type="hidden" name="kembali" value="/">
+        <span class="small ok">{{ ready }} siap dibuat</span>
+        <button class="button button-success sm" type="submit">{{ icon('play') }}Jalankan worker</button>
+      </form>
+      {% endif %}
+    </div>
+    <ul class="pipeline">
+      {% for item in onboardings %}
+      <li>
+        <div>
+          <p class="pipeline-name">{{ item.name }}</p>
+          <p class="pipeline-meta">{{ item.jobTitle }} · {{ item.department }} · <span class="mono">{{ item.email }}</span></p>
+          <p class="pipeline-state {{ item.tone }}">{{ item.label }}</p>
+        </div>
+        <div class="pipeline-side">
+          <ol class="steps" aria-label="Tahap: {{ steps[item.step] }}">
+            {% for step in steps %}<li><span class="step{{ ' done' if loop.index0 < item.step }}{{ ' now' if loop.index0 == item.step }}">{{ step }}</span></li>{% endfor %}
+          </ol>
+          <a href="/pengajuan/{{ item.id }}">Lihat pengajuan</a>
+        </div>
+      </li>
       {% endfor %}
-    </select>
-    <button class="button button-secondary" type="submit">Terapkan</button>
-    {% if can('directory.export') %}
-    <a class="button button-ghost" href="/direktori/export.xlsx?{{ base_query | urlencode }}">Export Excel</a>
-    {% endif %}
-  </form>
-
-  <div class="card card-flush">
-    {% if not employees %}
-      <p class="empty">Tidak ada karyawan yang cocok.</p>
-    {% else %}
-    <table class="table">
-      <thead><tr><th>Nama</th><th>Jabatan</th><th>Divisi</th><th>Status</th><th>Pengajuan</th></tr></thead>
-      <tbody>
-      {% for e in employees %}
-        <tr>
-          <td><a href="/karyawan/{{ e.id }}" class="person"><strong>{{ e.displayName }}</strong><span class="muted small">{{ e.email }}</span></a></td>
-          <td>{{ e.jobTitle or '—' }}</td>
-          <td>{{ e.department or '—' }}</td>
-          <td><span class="badge {{ 'badge-ok' if e.status == 'ACTIVE' else 'badge-muted' }}">{{ 'Aktif' if e.status == 'ACTIVE' else 'Nonaktif' }}</span></td>
-          <td>{% set r = active_requests.get(e.id) %}{% if r %}<a class="badge badge-warn" href="/pengajuan/{{ r.id }}">{{ TYPE_LABELS[r.type] }} · {{ STATUS_LABELS[r.status] }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-    {% endif %}
-  </div>
-
-  {% if pages > 1 %}
-  <nav class="pager" aria-label="Halaman">
-    <span class="muted small">{{ total }} karyawan · halaman {{ page }} dari {{ pages }}</span>
-    <span>
-      {% if page > 1 %}<a class="button button-ghost" href="/?{{ base_query | urlencode }}&halaman={{ page - 1 }}">← Sebelumnya</a>{% endif %}
-      {% if page < pages %}<a class="button button-ghost" href="/?{{ base_query | urlencode }}&halaman={{ page + 1 }}">Berikutnya →</a>{% endif %}
-    </span>
-  </nav>
-  {% else %}
-  <p class="muted small">{{ total }} karyawan.</p>
+    </ul>
+  </section>
   {% endif %}
-</section>
+
+  <section class="card clip">
+    <form class="toolbar" method="get" action="/">
+      <div class="toolbar-row">
+        <label class="control-wrap grow">
+          <span class="sr-only">Cari karyawan</span>
+          {{ icon('search') }}
+          <input class="control" type="search" name="q" value="{{ query.q }}" placeholder="Cari nama, email, jabatan…">
+        </label>
+        <label class="control-wrap small-icon">
+          <span class="sr-only">Saring berdasarkan status</span>
+          {{ icon('filter') }}
+          <select class="control w-status" name="status">
+            {% for value, label in statuses.items() %}<option value="{{ value }}"{{ ' selected' if query.status == value }}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="control-wrap small-icon">
+          <span class="sr-only">Saring berdasarkan departemen</span>
+          {{ icon('building') }}
+          <select class="control w-dept" name="departemen">
+            <option value="">Semua departemen</option>
+            {% for group, items in department_groups %}
+            <optgroup label="{{ group }}">{% for d in items %}<option value="{{ d }}"{{ ' selected' if query.departemen == d }}>{{ d }}</option>{% endfor %}</optgroup>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="joined">
+          <label class="control-wrap small-icon">
+            <span class="sr-only">Urutkan berdasarkan</span>
+            {{ icon('sort') }}
+            <select class="control w-sort" name="urut">
+              {% for key, label in sort_labels.items() %}<option value="{{ key }}"{{ ' selected' if query.urut == key }}>Urut: {{ label }}</option>{% endfor %}
+            </select>
+          </label>
+          <button class="flip{{ ' down' if query.arah == 'turun' }}" type="submit" name="arah" value="{{ 'naik' if query.arah == 'turun' else 'turun' }}"
+                  title="{{ 'Menurun (Z→A)' if query.arah == 'turun' else 'Menaik (A→Z)' }}" aria-label="Balik urutan">{{ icon('arrow-up') }}</button>
+        </div>
+        <button class="button button-secondary" type="submit">Terapkan</button>
+        {% if dirty %}<a class="button button-ghost sm" href="/">{{ icon('close') }}Reset</a>{% endif %}
+      </div>
+      <div class="toolbar-row summary">
+        <span><span class="tnum">{{ total }}</span> dari <span class="tnum">{{ everybody }}</span></span>
+        {% if hidden_inactive %}<span class="hint-dotted" title="Akun nonaktif tidak ditampilkan di tampilan awal. Cari namanya, atau pilih status Nonaktif, untuk melihatnya.">{{ hidden_inactive }} nonaktif disembunyikan</span>{% endif %}
+        {% if can('directory.export') %}
+        <span class="push"><a class="button button-ghost sm" href="/direktori/export.xlsx{{ ('?' ~ (base_query | urlencode)) if base_query }}" title="Unduh baris yang terlihat sebagai file Excel">{{ icon('download') }}Ekspor</a></span>
+        {% endif %}
+      </div>
+    </form>
+
+    {% if not employees %}
+      {% call empty_state('search', 'Tidak ada karyawan yang cocok dengan filter ini.' if dirty else 'Direktori masih kosong.') %}
+        {% if dirty %}<a class="button button-ghost sm" href="/">Hapus semua filter</a>{% endif %}
+      {% endcall %}
+    {% else %}
+    <div class="table-wrap">
+      <table class="table rows wide">
+        <thead>
+          <tr>
+            <th scope="col">{{ sort_header('nama', 'Nama') }}</th>
+            <th scope="col">{{ sort_header('jabatan', 'Jabatan') }}</th>
+            <th scope="col">{{ sort_header('departemen', 'Departemen') }}</th>
+            <th scope="col">{{ sort_header('status', 'Status') }}</th>
+            <th scope="col">Pengajuan berjalan</th>
+            <th scope="col" class="right">Tindakan</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for e in employees %}
+          {% set r = active_requests.get(e.id) %}
+          <tr>
+            <td>
+              <a href="/karyawan/{{ e.id }}" class="person">
+                <span class="person-avatar" aria-hidden="true">{{ e.displayName | initials }}</span>
+                <span class="person-text">
+                  <span class="person-name"><span>{{ e.displayName }}</span>{% if e.createdAt | is_new %}<span class="new-badge">Baru</span>{% endif %}</span>
+                  <span class="person-mail">{{ e.email }}</span>
+                </span>
+              </a>
+            </td>
+            <td>{{ e.jobTitle or '—' }}</td>
+            <td>{{ e.department or '—' }}</td>
+            <td>{{ employee_badge(e.status) }}</td>
+            <td>{% if r %}<a class="pending-badge{{ ' failed' if r.status == 'FAILED' }}" href="/pengajuan/{{ r.id }}" title="Lihat pengajuan yang sedang berjalan">{{ TYPE_LABELS[r.type] }} · {{ STATUS_LABELS[r.status] }}</a>{% else %}<span class="faint small">—</span>{% endif %}</td>
+            <td class="right">
+              <div class="row-actions">
+                <a class="button button-ghost sm" href="/karyawan/{{ e.id }}" title="Lihat profil detail karyawan">Detail</a>
+                {% if can('request.create') and not r and e.status == 'ACTIVE' %}
+                <a class="button button-secondary sm" href="/pengajuan/baru?jenis=mutasi&karyawan={{ e.id }}" title="Ajukan perpindahan divisi — melewati persetujuan manager dan CISO">{{ icon('swap') }}Ajukan perubahan</a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if pages > 1 %}
+    <nav class="pager" aria-label="Halaman">
+      {% if page > 1 %}<a href="/?{{ base_query | items_to_query(halaman=page - 1) }}">← Sebelumnya</a>{% else %}<span></span>{% endif %}
+      <span class="faint">Halaman {{ page }} dari {{ pages }}</span>
+      {% if page < pages %}<a href="/?{{ base_query | items_to_query(halaman=page + 1) }}">Berikutnya →</a>{% else %}<span></span>{% endif %}
+    </nav>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

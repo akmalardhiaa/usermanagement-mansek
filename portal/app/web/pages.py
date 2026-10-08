@@ -2,15 +2,68 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.ad_client import AdError
 from app.domain.background import minutes_or_seconds
 from app.domain.catalog import DEPARTMENTS, department_ou, department_pairs, department_parent, CatalogError
+from app.domain.lifecycle import jakarta_text
+from app.domain.store import now_iso
 from app.domain.sync import sync_sources
 from app.mail.mailer import MailError, SmtpMailer, smtp_config, smtp_problem
-from app.web.context import Context
+from app.web.context import THEME_COOKIE, THEMES, Context
+
+JAKARTA = timezone(timedelta(hours=7))
+DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober",
+          "November", "Desember"]
+# What each kind of entry looks like in the feed: label, icon, tone.
+ACTIVITY_LOOK = {
+    "user.created": ("Akun dibuat", "user-plus", "ok"),
+    "transfer.requested": ("Mutasi", "swap", "info"),
+    "employee.profile_updated": ("Profil diperbarui", "edit", "accent"),
+    "access.disabled": ("Dinonaktifkan", "power", "danger"),
+    "directory.synced": ("Sinkron AD", "sync", "info"),
+    "directory.exported": ("Ekspor", "download", ""),
+}
+ACTIVITY_FILTERS = {
+    "dibuat": ("Akun dibuat", {"user.created"}),
+    "mutasi": ("Mutasi", {"transfer.requested"}),
+    "profil": ("Profil diperbarui", {"employee.profile_updated"}),
+    "nonaktif": ("Dinonaktifkan", {"access.disabled"}),
+    "sinkron": ("Sinkron AD", {"directory.synced"}),
+    "ekspor": ("Ekspor", {"directory.exported"}),
+}
+
+
+def local_path(value: str, fallback: str) -> str:
+    """Somewhere on this portal to go back to, never another site."""
+    value = value.strip()
+    if value.startswith("/") and not value.startswith("//") and "\\" not in value:
+        return value
+    return fallback
+
+
+def _by_day(entries: list[dict]) -> list[tuple[str, list[dict]]]:
+    """Entries grouped under a heading per day, in Jakarta time."""
+    today = datetime.now(JAKARTA).date()
+    days: list[tuple[str, list[dict]]] = []
+    for entry in entries:
+        try:
+            at = datetime.fromisoformat(entry["at"].replace("Z", "+00:00")).astimezone(JAKARTA)
+        except (KeyError, ValueError):
+            continue
+        day = at.date()
+        label = ("Hari ini" if day == today else "Kemarin" if day == today - timedelta(days=1)
+                 else f"{DAYS[day.weekday()]}, {day.day} {MONTHS[day.month - 1]} {day.year}")
+        if not days or days[-1][0] != label:
+            days.append((label, []))
+        days[-1][1].append({**entry, "time": at.strftime("%H.%M")})
+    return days
 
 
 def _check(check_id: str, name: str, status: str, message: str) -> dict:
@@ -167,8 +220,15 @@ def register(app: FastAPI, ctx: Context) -> None:
         session, refused = ctx.guard(request, "activity.read")
         if refused:
             return refused
-        entries = sorted(ctx.store.read()["activity"], key=lambda e: e["at"], reverse=True)[:200]
-        return ctx.page(request, "activity.html", session=session, entries=entries)
+        text = (request.query_params.get("q") or "").strip().lower()[:200]
+        kind = request.query_params.get("jenis") or ""
+        kind = kind if kind in ACTIVITY_FILTERS else ""
+        everything = ctx.store.read()["activity"]
+        entries = [e for e in sorted(everything, key=lambda e: e["at"], reverse=True)
+                   if (not kind or e["action"] in ACTIVITY_FILTERS[kind][1])
+                   and (not text or any(text in (e.get(f) or "").lower() for f in ("detail", "actor", "employeeName")))][:300]
+        return ctx.page(request, "activity.html", session=session, days=_by_day(entries), shown=len(entries),
+                        total=len(everything), q=text, jenis=kind, kinds=ACTIVITY_FILTERS, look=ACTIVITY_LOOK)
 
     @app.get("/status-ad", include_in_schema=False)
     def old_status_address():
@@ -184,15 +244,32 @@ def register(app: FastAPI, ctx: Context) -> None:
         data = ctx.store.read()
         outbox = {state: sum(1 for e in data["outboxEvents"] if e["state"] == state) for state in ("PENDING", "SENT", "DEAD")}
         return ctx.page(request, "status.html", session=session, ad=ad_checks(ctx, env), portal=portal_checks(ctx, env),
-                        events=ctx.security.recent(40), outbox=outbox, message=request.query_params.get("pesan"))
+                        events=ctx.security.recent(40), outbox=outbox, message=request.query_params.get("pesan"),
+                        checked_at=f"{jakarta_text(now_iso())} WIB")
 
     @app.post("/status/jalankan")
     async def run_now(request: Request):
         session, refused = ctx.guard(request, "execution.run")
         if refused:
             return refused
-        what = (await request.form()).get("apa", "")
-        loop = {"worker": "worker", "email": "outbox", "sinkron": "sync"}.get(str(what))
+        form = await request.form()
+        loop = {"worker": "worker", "email": "outbox", "sinkron": "sync"}.get(str(form.get("apa", "")))
         if loop:
             ctx.background[loop].run_now()
-        return RedirectResponse("/status?pesan=Dijalankan. Muat ulang halaman ini sebentar lagi untuk melihat hasilnya.", status_code=303)
+        back = local_path(str(form.get("kembali", "")), "/status")
+        joiner = "&" if "?" in back else "?"
+        return RedirectResponse(f"{back}{joiner}pesan=" + quote("Dijalankan. Muat ulang halaman ini sebentar lagi untuk melihat hasilnya."),
+                                status_code=303)
+
+    @app.post("/tema")
+    async def choose_theme(request: Request):
+        """Light or dark, remembered in a cookie the server reads; no script needed."""
+        form = await request.form()
+        response = RedirectResponse(local_path(str(form.get("kembali", "")), "/"), status_code=303)
+        theme = str(form.get("tema", ""))
+        if theme in THEMES:
+            response.set_cookie(THEME_COOKIE, theme, max_age=365 * 24 * 3600, path="/", secure=ctx.settings.cookies_secure,
+                                httponly=True, samesite="lax")
+        else:
+            response.delete_cookie(THEME_COOKIE, path="/")
+        return response

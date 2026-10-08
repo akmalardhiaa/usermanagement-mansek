@@ -1,22 +1,24 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon %}
+{% set bare = true %}
 {% block title %}Persetujuan{% endblock %}
-{% block content %}
-<section class="narrow">
-  <div class="card stack">
-    {% if ok %}
-      {% if decision == 'APPROVED' %}
-        <h1 class="card-title ok">Persetujuan tercatat</h1>
-        <p>Terima kasih. {% if item.status in ['QUEUED','SCHEDULED'] %}Semua tahap sudah setuju; perubahan sedang dijalankan ke Active Directory.
-           {% else %}Pengajuan diteruskan ke tim CISO.{% endif %}</p>
-      {% else %}
-        <h1 class="card-title danger">Penolakan tercatat</h1>
-        <p>Pengajuan ditolak dan HC menerima pemberitahuan. Tidak ada yang diubah di Active Directory.</p>
-      {% endif %}
-      <p class="muted small">Halaman ini boleh ditutup.</p>
+{% block bare_content %}
+<section class="card pad">
+  <span class="sheen-line" aria-hidden="true"></span>
+  {% if ok %}
+    {% if decision == 'APPROVED' %}
+      <h1 class="notice-title ok">{{ icon('check') }}Persetujuan tercatat</h1>
+      <p class="mt-2 muted">Terima kasih. {% if item.status in ['QUEUED','SCHEDULED'] %}Semua tahap sudah setuju; perubahan sedang dijalankan ke Active Directory.
+         {% else %}Pengajuan diteruskan ke tim CISO.{% endif %} Tautan ini sudah dipakai dan tidak berlaku lagi.</p>
+      <p class="mt-4 small faint">Persetujuan mengesahkan perubahan, bukan menjalankannya. Akun baru berubah setelah eksekusi dijalankan dan hasilnya diverifikasi.</p>
     {% else %}
-      <h1 class="card-title warn">Keputusan tidak disimpan</h1>
-      <p>{{ message }}</p>
+      <h1 class="notice-title danger">{{ icon('x-circle') }}Penolakan tercatat</h1>
+      <p class="mt-2 muted">Pengajuan ditolak dan HC menerima pemberitahuan. Tidak ada yang diubah di Active Directory. Tautan ini sudah tidak berlaku.</p>
     {% endif %}
-  </div>
+    <p class="mt-4 small faint">Halaman ini boleh ditutup.</p>
+  {% else %}
+    <h1 class="notice-title warn">{{ icon('alert') }}Keputusan tidak disimpan</h1>
+    <p class="mt-2 muted">{{ message }}</p>
+  {% endif %}
 </section>
 {% endblock %}

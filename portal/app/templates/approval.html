@@ -1,59 +1,71 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, lifecycle_badge, type_badge %}
+{% set bare = true %}
 {% block title %}Persetujuan{% endblock %}
-{% block head %}{% if preview.ok and intent == 'APPROVED' %}<script src="{{ url_for('static', path='approve.js') }}" defer></script>{% endif %}{% endblock %}
-{% block content %}
-<section class="narrow stack-lg">
-  {% if not preview.ok %}
-    <div class="card">
-      {% if preview.settled %}
-        <h1 class="card-title ok">Keputusan sudah tercatat</h1>
-        <p>{{ preview.reason }}</p>
-        <p class="muted small">Tidak ada yang perlu dilakukan lagi. Email ini boleh dihapus.</p>
-      {% else %}
-        <h1 class="card-title warn">Tautan tidak bisa dipakai</h1>
-        <p>{{ preview.reason }}</p>
-        <p class="muted small">Bila masih perlu memberi keputusan, minta HC mengirim ulang permintaan persetujuan.</p>
-      {% endif %}
-    </div>
-  {% else %}
-    {% set r = preview.request %}
-    <div>
-      <span class="pill">Persetujuan {{ 'Manager' if preview.stage == 'MANAGER' else 'CISO' }}</span>
-      <h1>{{ TYPE_LABELS[r.type] }} — {{ r.subject.displayName }}</h1>
-      <p class="muted">Diajukan {{ r.requester.name }} (Human Capital) · untuk {{ preview.approverName }}
-        {% if preview.teamSize %}· tim CISO {{ preview.teamSize }} orang, keputusan pertama yang berlaku{% endif %}</p>
-    </div>
-    {% if preview.managerDecision %}
-      <p class="alert alert-ok">Sudah disetujui manager: {{ preview.managerDecision.by }} pada {{ preview.managerDecision.at }} WIB.</p>
+{% block head %}{% if preview.ok and intent == 'APPROVED' %}<script src="/static/approve.js" defer></script>{% endif %}{% endblock %}
+{% block bare_content %}
+{% if not preview.ok %}
+  <section class="card pad">
+    {% if preview.settled %}
+      <h1 class="notice-title ok">{{ icon('check') }}Keputusan sudah tercatat</h1>
+      <p class="mt-2 muted">{{ preview.reason }}</p>
+      <p class="mt-4 small faint">Permintaan ini dikirim ke beberapa orang sekaligus, atau sudah Anda jawab. Keputusan pertama yang masuk yang berlaku; tautan lain otomatis tidak berlaku. Email ini boleh dihapus.</p>
+    {% else %}
+      <h1 class="notice-title warn">{{ icon('alert') }}Tautan tidak dapat dipakai</h1>
+      <p class="mt-2 muted">{{ preview.reason }}</p>
+      <p class="mt-4 small faint">Bila Anda yakin seharusnya dapat memutuskan pengajuan ini, minta Human Capital mengirim ulang permintaan persetujuan. Tautan lama sengaja tidak dapat dihidupkan kembali.</p>
     {% endif %}
-    <div class="card">
-      <ul class="facts">{% for label, value in rows %}<li><span>{{ label }}</span><strong>{{ value }}</strong></li>{% endfor %}</ul>
-    </div>
+  </section>
+{% else %}
+  {% set r = preview.request %}
+  <section class="card pad">
+    <span class="sheen-line" aria-hidden="true"></span>
+    <div class="actions">{{ type_badge(r.type) }}{{ lifecycle_badge(r.status) }}</div>
+    <h1 class="approval-title">{{ r.subject.displayName }}</h1>
+    <p class="muted small">Diajukan {{ r.requester.name }} (Human Capital) · versi {{ r.version }} · untuk {{ preview.approverName }}</p>
+    {% if preview.teamSize %}
+      <div class="notice notice-info mt-4"><p>Dikirim ke {{ preview.teamSize }} anggota tim CISO. Keputusan pertama yang masuk yang berlaku; tautan anggota lain otomatis tidak berlaku setelahnya.</p></div>
+    {% endif %}
+    {% if preview.managerDecision %}
+      <div class="notice notice-ok mt-4"><p>Manager {{ preview.managerDecision.by }} sudah menyetujui pada {{ preview.managerDecision.at }} WIB.</p></div>
+    {% endif %}
+    <dl class="facts mt-4">
+      {% for label, value in rows %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+    </dl>
+  </section>
 
-    <div class="card stack">
-      {% if intent == 'APPROVED' %}
-        <p class="muted">Menyimpan persetujuan Anda…</p>
-        <form method="post" action="/persetujuan/{{ token }}" data-auto-submit>
-          <input type="hidden" name="decision" value="APPROVED">
-          <button class="button button-primary" type="submit">Setujui</button>
-        </form>
-      {% elif intent == 'REJECTED' %}
-        <p><strong>Tolak pengajuan ini?</strong> Tidak ada yang akan diubah di Active Directory, dan HC menerima pemberitahuan.</p>
+  <section class="card pad decision">
+    <div>
+      <h2 class="card-title">Keputusan Anda — tahap {{ 'Manager' if preview.stage == 'MANAGER' else 'CISO' }}</h2>
+      <p class="card-sub">{{ 'Anda menyetujui kebutuhan divisi atas perubahan ini.' if preview.stage == 'MANAGER'
+                             else 'Anda menyetujui dampak aksesnya. Persetujuan ini mengesahkan perubahan, bukan menjalankannya.' }}</p>
+    </div>
+    {% if intent == 'APPROVED' %}
+      <p class="muted">Menyimpan persetujuan Anda…</p>
+      <form method="post" action="/persetujuan/{{ token }}" data-auto-submit>
+        <input type="hidden" name="decision" value="APPROVED">
+        <button class="button button-primary block" type="submit">{{ icon('check') }}Setujui</button>
+      </form>
+    {% elif intent == 'REJECTED' %}
+      <div class="notice notice-warn"><p><strong>Tolak pengajuan ini?</strong> Tidak ada yang diubah di Active Directory, dan HC menerima pemberitahuan bahwa pengajuannya ditolak.</p></div>
+      <div class="decision-buttons">
         <form method="post" action="/persetujuan/{{ token }}">
           <input type="hidden" name="decision" value="REJECTED">
-          <button class="button button-danger" type="submit">Ya, tolak</button>
+          <button class="button button-danger" type="submit">{{ icon('x-circle') }}Ya, tolak</button>
         </form>
-        <p class="small"><a href="/persetujuan/{{ token }}?putusan=setuju">Tidak jadi — setujui saja</a></p>
-      {% else %}
-        <div class="actions">
-          <form method="post" action="/persetujuan/{{ token }}"><input type="hidden" name="decision" value="APPROVED">
-            <button class="button button-primary button-inline" type="submit">Setujui</button></form>
-          <a class="button button-danger-ghost" href="/persetujuan/{{ token }}?putusan=tolak">Tolak</a>
-        </div>
-      {% endif %}
-      <p class="muted small">{{ 'Manager menilai kebutuhan bisnis dan jabatan.' if preview.stage == 'MANAGER' else 'Tim CISO menilai akses yang diberikan.' }}
-        Persetujuan berarti perubahan dijalankan ke Active Directory setelah semua tahap setuju.</p>
-    </div>
-  {% endif %}
-</section>
+        <a class="button button-ghost" href="/persetujuan/{{ token }}?putusan=setuju">Tidak jadi — setujui saja</a>
+      </div>
+    {% else %}
+      <div class="decision-buttons">
+        <form method="post" action="/persetujuan/{{ token }}">
+          <input type="hidden" name="decision" value="APPROVED">
+          <button class="button button-primary" type="submit">{{ icon('check') }}Setujui</button>
+        </form>
+        <a class="button button-danger" href="/persetujuan/{{ token }}?putusan=tolak">{{ icon('x-circle') }}Tolak</a>
+      </div>
+    {% endif %}
+  </section>
+
+  <p class="center small faint">Tautan ini sekali pakai dan memiliki masa berlaku. Jangan meneruskannya.</p>
+{% endif %}
 {% endblock %}

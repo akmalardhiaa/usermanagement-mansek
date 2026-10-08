@@ -1,43 +1,56 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, page_header, lifecycle_badge, type_badge, empty_state %}
 {% block title %}Pengajuan{% endblock %}
 {% block content %}
-<section class="stack-lg">
-  <div class="page-head">
-    <div>
-      <h1>Pengajuan</h1>
-      <p class="muted">Onboarding, mutasi, resign, dan perubahan profil — disetujui manager lalu tim CISO lewat email.</p>
-    </div>
-    {% if can('request.create') %}<a class="button button-primary button-inline" href="/pengajuan/baru">+ Pengajuan baru</a>{% endif %}
-  </div>
+<div class="stack">
+  {% call page_header(eyebrow='Pengajuan', title='Daftar pengajuan',
+                      description='Onboarding, mutasi, resign, dan perubahan profil. Status di sini adalah status pengajuannya — bukan keadaan akun, yang hanya berubah setelah perubahan benar-benar dijalankan.') %}
+    {% if can('request.create') %}<a class="button button-primary" href="/pengajuan/baru">{{ icon('user-plus') }}Pengajuan baru</a>{% endif %}
+  {% endcall %}
 
-  <form class="toolbar" method="get" action="/pengajuan">
-    <select name="jenis" aria-label="Jenis">
-      <option value="">Semua jenis</option>
-      {% for slug, kind in kinds.items() %}<option value="{{ slug }}" {{ 'selected' if jenis == slug }}>{{ TYPE_LABELS[kind] }}</option>{% endfor %}
-    </select>
-    <select name="status" aria-label="Status">
-      {% for key, label in [('aktif','Berjalan'),('gagal','Gagal'),('selesai','Selesai'),('ditutup','Ditolak / dibatalkan'),('semua','Semua')] %}
-      <option value="{{ key }}" {{ 'selected' if group == key }}>{{ label }}</option>
+  <section class="card clip">
+    <form class="toolbar" method="get" action="/pengajuan">
+      <div class="toolbar-row">
+        <label class="control-wrap small-icon">
+          <span class="sr-only">Jenis</span>{{ icon('filter') }}
+          <select class="control w-kind" name="jenis">
+            <option value="">Semua jenis</option>
+            {% for slug, kind in kinds.items() %}<option value="{{ slug }}"{{ ' selected' if jenis == slug }}>{{ TYPE_LABELS[kind] }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="control-wrap small-icon">
+          <span class="sr-only">Status</span>{{ icon('filter') }}
+          <select class="control w-status" name="status">
+            {% for key, label in [('aktif','Berjalan'),('gagal','Gagal'),('selesai','Selesai'),('ditutup','Ditolak / dibatalkan'),('semua','Semua status')] %}
+            <option value="{{ key }}"{{ ' selected' if group == key }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button class="button button-secondary" type="submit">Terapkan</button>
+        {% if jenis or group != 'aktif' %}<a class="button button-ghost sm" href="/pengajuan">{{ icon('close') }}Reset</a>{% endif %}
+        <span class="small faint push-right"><span class="tnum" >{{ requests | length }}</span> dari <span class="tnum">{{ total }}</span></span>
+      </div>
+    </form>
+
+    {% if not requests %}
+      {{ empty_state('approvals', 'Belum ada pengajuan yang cocok.') }}
+    {% else %}
+    <ul class="list scroll">
+      {% for r in requests %}
+      <li>
+        <a class="list-row" href="/pengajuan/{{ r.id }}">
+          <span class="list-type">{{ type_badge(r.type) }}</span>
+          <span class="list-main">
+            <strong>{{ r.subject.displayName }}</strong>
+            <span>Diajukan {{ r.requester.name }} · {{ r.createdAt | when }}{% if r.version > 1 %} · versi {{ r.version }}{% endif %}{% if r.subject.department %} · {{ r.subject.department }}{% endif %}</span>
+          </span>
+          {{ lifecycle_badge(r.status) }}
+        </a>
+      </li>
       {% endfor %}
-    </select>
-    <button class="button button-secondary" type="submit">Terapkan</button>
-  </form>
-
-  <div class="card card-flush">
-    {% if not requests %}<p class="empty">Tidak ada pengajuan.</p>{% else %}
-    <table class="table">
-      <thead><tr><th>Jenis</th><th>Karyawan</th><th>Status</th><th>Pemohon</th><th>Diperbarui</th></tr></thead>
-      <tbody>{% for r in requests %}
-        <tr>
-          <td><a href="/pengajuan/{{ r.id }}"><strong>{{ TYPE_LABELS[r.type] }}</strong></a></td>
-          <td>{{ r.subject.displayName }}<span class="muted small block">{{ r.subject.department or '' }}</span></td>
-          <td><span class="badge badge-{{ 'ok' if r.status == 'COMPLETED' else ('danger' if r.status in ['FAILED','REJECTED'] else ('muted' if r.status in ['CANCELLED','EXPIRED'] else 'warn')) }}">{{ STATUS_LABELS[r.status] }}</span></td>
-          <td>{{ r.requester.name }}</td>
-          <td class="muted small">{{ r.updatedAt | when }}</td>
-        </tr>
-      {% endfor %}</tbody>
-    </table>{% endif %}
-  </div>
-  {% if total > requests | length %}<p class="muted small">Menampilkan {{ requests | length }} dari {{ total }}. Persempit dengan filter.</p>{% endif %}
-</section>
+    </ul>
+    {% if total > requests | length %}<p class="pager faint">Menampilkan {{ requests | length }} dari {{ total }}. Persempit dengan filter.</p>{% endif %}
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

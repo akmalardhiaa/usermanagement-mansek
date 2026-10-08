@@ -1,17 +1,53 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, page_header, empty_state %}
 {% block title %}Aktivitas{% endblock %}
 {% block content %}
-<section class="stack-lg">
-  <div><h1>Aktivitas</h1><p class="muted">Yang berubah di direktori: akun dibuat, dipindah, dinonaktifkan, sinkronisasi dari AD, export.</p></div>
-  <div class="card card-flush">
-    {% if not entries %}<p class="empty">Belum ada aktivitas.</p>{% else %}
-    <table class="table">
-      <thead><tr><th>Waktu</th><th>Oleh</th><th>Kejadian</th></tr></thead>
-      <tbody>{% for e in entries %}
-        <tr><td class="muted small">{{ e.at | when }}</td><td>{{ e.actor }}</td>
-            <td>{% if e.employeeId %}<a href="/karyawan/{{ e.employeeId }}">{{ e.detail }}</a>{% else %}{{ e.detail }}{% endif %}</td></tr>
-      {% endfor %}</tbody>
-    </table>{% endif %}
-  </div>
-</section>
+<div class="stack">
+  {{ page_header(eyebrow='Jejak aktivitas', title='Riwayat aktivitas',
+                 description='Yang berubah di direktori: akun dibuat, dipindah, diperbarui, dinonaktifkan, sinkronisasi dari AD, dan ekspor.') }}
+
+  <section class="card clip">
+    <form class="toolbar" method="get" action="/aktivitas">
+      <div class="toolbar-row">
+        <label class="control-wrap grow">
+          <span class="sr-only">Cari aktivitas</span>{{ icon('search') }}
+          <input class="control" type="search" name="q" value="{{ q }}" placeholder="Cari nama, pelaku, atau keterangan">
+        </label>
+        <label class="control-wrap small-icon">
+          <span class="sr-only">Saring berdasarkan jenis aktivitas</span>{{ icon('filter') }}
+          <select class="control w-kind" name="jenis">
+            <option value="">Semua aktivitas</option>
+            {% for key, (label, _) in kinds.items() %}<option value="{{ key }}"{{ ' selected' if jenis == key }}>{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <button class="button button-secondary" type="submit">Terapkan</button>
+        {% if q or jenis %}<a class="button button-ghost sm" href="/aktivitas">{{ icon('close') }}Reset</a>{% endif %}
+        <span class="small faint push-right"><span class="tnum">{{ shown }}</span> dari <span class="tnum">{{ total }}</span></span>
+      </div>
+    </form>
+
+    {% if not days %}
+      {{ empty_state('clock', 'Belum ada aktivitas yang cocok.' if (q or jenis) else 'Belum ada aktivitas yang tercatat.') }}
+    {% else %}
+    <div class="feed-scroll">
+      {% for day, entries in days %}
+      <p class="day-head">{{ day }}</p>
+      <ul class="feed">
+        {% for e in entries %}
+        {% set shape = look.get(e.action, ('Aktivitas', 'clock', '')) %}
+        <li>
+          <span class="feed-time">{{ e.time }}</span>
+          <span class="feed-icon {{ shape[2] }}" title="{{ shape[0] }}">{{ icon(shape[1]) }}</span>
+          <div class="feed-text">
+            <p>{% if e.employeeId %}<a href="/karyawan/{{ e.employeeId }}">{{ e.detail }}</a>{% else %}{{ e.detail }}{% endif %}</p>
+            <span>{{ shape[0] }} · {{ e.actor }}</span>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

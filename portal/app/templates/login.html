@@ -1,38 +1,66 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon %}
 {% block title %}Masuk{% endblock %}
 {% block content %}
-<section class="auth">
-  <div class="auth-intro">
-    <span class="pill">User Management</span>
-    <h1>Masuk Portal</h1>
-    <p class="muted">Silakan masukkan kredensial akun Human Capital Anda.</p>
-  </div>
-
-  <div class="card auth-card">
-    {% if error %}<p class="alert alert-error" role="alert">{{ error }}</p>{% endif %}
-
-    <form method="post" action="/login" class="stack">
-      <label class="field">
-        <span>Username</span>
-        <input name="username" value="{{ username }}" placeholder="nama.pengguna atau email"
-               autocomplete="username" autofocus required>
-      </label>
-      <label class="field">
-        <span>Kata sandi</span>
-        <input name="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
-      </label>
-      <button class="button button-primary" type="submit">Masuk</button>
-    </form>
-
-    {% if demo %}
-    <div class="note note-warn">
-      <strong>Mode demo — Active Directory belum tersambung</strong>
-      <p>Masuk sebagai <code>admin</code> dengan kata sandi <code>admin12345</code>. Portal ini hanya untuk
-         Human Capital: manager dan tim CISO menyetujui dari email, bukan dari sini.</p>
+<div class="auth">
+  <aside class="auth-aside">
+    <span class="platform-pill">HUMAN CAPITAL PLATFORM</span>
+    <h2>Portal Terpadu<br><span class="shimmer">User Management</span></h2>
+    <p class="auth-lead">Kelola siklus hidup akses akun karyawan secara otomatis, aman, dan transparan melalui satu dasbor modern.</p>
+    <div class="features">
+      <div class="feature">
+        <span class="choice-icon">{{ icon('user') }}</span>
+        <div><h3>Direktori Karyawan Terintegrasi</h3><p>Pencarian cepat, penyaringan divisi, dan manajemen status akun secara real-time.</p></div>
+      </div>
+      <div class="feature">
+        <span class="choice-icon">{{ icon('approvals') }}</span>
+        <div><h3>Persetujuan Bertingkat lewat Email</h3><p>Alur persetujuan terverifikasi oleh Manager dan IT Security otomatis melalui email.</p></div>
+      </div>
+      <div class="feature">
+        <span class="choice-icon">{{ icon('check') }}</span>
+        <div><h3>Jejak Audit Lintas Sistem</h3><p>Rekam jejak transparan dan akuntabel untuk setiap perubahan hak akses.</p></div>
+      </div>
     </div>
-    {% else %}
-    <p class="muted small divider">Masuk dengan akun Active Directory Anda.</p>
-    {% endif %}
+  </aside>
+
+  <div class="auth-main">
+    <div class="auth-head">
+      <span class="tiny-pill"><span class="shimmer">User Management</span></span>
+      <h1>{% block auth_title %}Masuk Portal{% endblock %}</h1>
+      <p>{% block auth_subtitle %}Silakan masukkan kredensial akun Human Capital Anda.{% endblock %}</p>
+    </div>
+
+    <section class="card auth-card">
+      <span class="sheen-line" aria-hidden="true"></span>
+      {% block auth_body %}
+      <form method="post" action="/login">
+        {% if error %}<div class="notice notice-error" role="alert"><p>{{ error }}</p></div>{% endif %}
+        <label class="field">
+          <span class="label">Username</span>
+          <span class="control-wrap">{{ icon('user') }}
+            <input name="username" value="{{ username }}" placeholder="nama.pengguna atau email" autocomplete="username" autofocus required>
+          </span>
+        </label>
+        <label class="field">
+          <span class="label">Kata sandi</span>
+          <span class="control-wrap">{{ icon('lock') }}
+            <input name="password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+          </span>
+        </label>
+        <button class="button button-primary block" type="submit">Masuk</button>
+      </form>
+
+      {% if demo %}
+      <div class="notice notice-warn notice-block" role="note">
+        <p class="notice-title">{{ icon('alert') }}Mode demo — Active Directory belum tersambung</p>
+        <p class="muted">Masuk sebagai <code>admin</code> dengan kata sandi <code>admin12345</code>. Portal ini hanya untuk
+          Human Capital: manager dan tim CISO menyetujui dari email, bukan dari sini.</p>
+      </div>
+      {% else %}
+      <p class="auth-foot">Masuk dengan akun Active Directory Anda.</p>
+      {% endif %}
+      {% endblock %}
+    </section>
   </div>
-</section>
+</div>
 {% endblock %}

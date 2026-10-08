@@ -1,52 +1,67 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, page_header, employee_badge, lifecycle_badge, type_badge, empty_state %}
 {% block title %}{{ employee.displayName }}{% endblock %}
 {% block content %}
-<section class="stack-lg">
-  <div class="page-head">
-    <div>
-      <a class="small" href="/">← Direktori</a>
-      <h1>{{ employee.displayName }}</h1>
-      <p class="muted">{{ employee.jobTitle or '—' }} · {{ employee.department or '—' }}
-        · <span class="badge {{ 'badge-ok' if employee.status == 'ACTIVE' else 'badge-muted' }}">{{ 'Aktif' if employee.status == 'ACTIVE' else 'Nonaktif' }}</span></p>
+<div class="stack">
+  <a class="back-link" href="/">{{ icon('arrow-left') }}Kembali ke direktori</a>
+
+  <header class="page-header">
+    <div class="person">
+      <span class="person-avatar large" aria-hidden="true">{{ employee.displayName | initials }}</span>
+      <div class="page-header-text">
+        <div class="page-header-line"><p class="eyebrow">Karyawan</p>{{ employee_badge(employee.status) }}{% if employee.createdAt | is_new %}<span class="new-badge">Baru</span>{% endif %}</div>
+        <h1>{{ employee.displayName }}</h1>
+        <p class="page-header-desc">{{ employee.jobTitle or '—' }} · {{ employee.department or '—' }}</p>
+      </div>
     </div>
-  </div>
+    {% if can('request.create') and not active and employee.status == 'ACTIVE' %}
+    <div class="page-header-actions">
+      <a class="button button-secondary" href="/pengajuan/baru?jenis=mutasi&karyawan={{ employee.id }}">{{ icon('swap') }}Ajukan mutasi</a>
+      <a class="button button-secondary" href="/pengajuan/baru?jenis=profil&karyawan={{ employee.id }}">{{ icon('edit') }}Ubah profil</a>
+      <a class="button button-danger" href="/pengajuan/baru?jenis=resign&karyawan={{ employee.id }}">{{ icon('user-x') }}Ajukan resign / termination</a>
+    </div>
+    {% endif %}
+  </header>
 
   {% if active %}
-  <div class="note note-warn">
-    <strong>Ada pengajuan berjalan</strong>
-    <p>{{ TYPE_LABELS[active.type] }} — {{ STATUS_LABELS[active.status] }}. <a href="/pengajuan/{{ active.id }}">Lihat pengajuan</a>.
-       Pengajuan baru untuk karyawan ini bisa dibuat setelah yang ini selesai atau dibatalkan.</p>
-  </div>
-  {% elif can('request.create') and employee.status == 'ACTIVE' %}
-  <div class="actions">
-    <a class="button button-secondary" href="/pengajuan/baru?jenis=mutasi&karyawan={{ employee.id }}">Ajukan mutasi</a>
-    <a class="button button-secondary" href="/pengajuan/baru?jenis=profil&karyawan={{ employee.id }}">Ubah profil</a>
-    <a class="button button-danger-ghost" href="/pengajuan/baru?jenis=resign&karyawan={{ employee.id }}">Ajukan resign / termination</a>
+  <div class="notice notice-warn">
+    <p><strong>Ada pengajuan berjalan:</strong> {{ TYPE_LABELS[active.type] }} — {{ STATUS_LABELS[active.status] }}.
+      Pengajuan baru untuk karyawan ini bisa dibuat setelah yang ini selesai atau dibatalkan.</p>
+    <a class="button button-ghost sm" href="/pengajuan/{{ active.id }}">Lihat pengajuan</a>
   </div>
   {% endif %}
 
-  <div class="card">
-    <h2 class="card-title">Data karyawan</h2>
-    <ul class="facts">
-      <li><span>Email</span><strong>{{ employee.email }}</strong></li>
-      <li><span>Manager</span><strong>{% if employee.managerName %}{{ employee.managerName }} ({{ employee.managerEmail }}){% else %}—{% endif %}</strong></li>
-      <li><span>Status kepegawaian</span><strong>{{ employment.get(employee.employmentType or '', '—') }}</strong></li>
-      {% if employee.expiredDate %}<li><span>Tanggal terakhir bekerja</span><strong>{{ date_text(employee.expiredDate) }}</strong></li>{% endif %}
-      <li><span>Lokasi</span><strong>{{ locations.get(employee.locationType or '', '—') }}{% if employee.branchName %} — {{ employee.branchName }}{% endif %}</strong></li>
-      <li><span>Tertaut ke AD</span><strong>{{ 'Ya' if employee.objectGUID else 'Belum' }}</strong></li>
-    </ul>
-  </div>
+  <div class="detail-grid">
+    <section class="card pad">
+      <h2 class="card-title">Data karyawan</h2>
+      <dl class="facts-grid mt-3">
+        <div><dt>Email</dt><dd>{{ employee.email }}</dd></div>
+        <div><dt>Manager</dt><dd>{% if employee.managerName %}{{ employee.managerName }}<span class="block faint small">{{ employee.managerEmail }}</span>{% else %}—{% endif %}</dd></div>
+        <div><dt>Jabatan</dt><dd>{{ employee.jobTitle or '—' }}</dd></div>
+        <div><dt>Departemen</dt><dd>{{ employee.department or '—' }}</dd></div>
+        <div><dt>Status kepegawaian</dt><dd>{{ employment.get(employee.employmentType or '', '—') }}</dd></div>
+        {% if employee.expiredDate %}<div><dt>Tanggal terakhir bekerja</dt><dd>{{ date_text(employee.expiredDate) }}</dd></div>{% endif %}
+        <div><dt>Lokasi</dt><dd>{{ locations.get(employee.locationType or '', '—') }}{% if employee.branchName %} — {{ employee.branchName }}{% endif %}</dd></div>
+        <div><dt>Tertaut ke AD</dt><dd>{{ 'Ya' if employee.objectGUID else 'Belum' }}</dd></div>
+      </dl>
+      {% if employee.jobDescription %}<p class="side-section muted">{{ employee.jobDescription }}</p>{% endif %}
+    </section>
 
-  <div class="card card-flush">
-    <h2 class="card-title pad">Riwayat pengajuan</h2>
-    {% if not history %}<p class="empty">Belum ada pengajuan.</p>{% else %}
-    <table class="table">
-      <thead><tr><th>Jenis</th><th>Status</th><th>Diajukan</th><th>Oleh</th></tr></thead>
-      <tbody>{% for r in history %}
-        <tr><td><a href="/pengajuan/{{ r.id }}">{{ TYPE_LABELS[r.type] }}</a></td><td>{{ STATUS_LABELS[r.status] }}</td>
-            <td>{{ r.createdAt | when }}</td><td>{{ r.requester.name }}</td></tr>
-      {% endfor %}</tbody>
-    </table>{% endif %}
+    <section class="card clip">
+      <h2 class="card-title pad-title">Riwayat pengajuan</h2>
+      {% if not history %}
+        {{ empty_state('approvals', 'Belum ada pengajuan.') }}
+      {% else %}
+      <ul class="list">
+        {% for r in history %}
+        <li><a class="list-row" href="/pengajuan/{{ r.id }}">
+          <span class="list-main"><span>{{ type_badge(r.type) }}</span><span>{{ r.createdAt | when }} · {{ r.requester.name }}</span></span>
+          {{ lifecycle_badge(r.status) }}
+        </a></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </section>
   </div>
-</section>
+</div>
 {% endblock %}

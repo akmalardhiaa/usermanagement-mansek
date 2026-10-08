@@ -1,42 +1,105 @@
+{%- from "_ui.html" import icon -%}
+{%- macro brand_mark(large=False) -%}
+<span class="brand-mark{{ ' large' if large }}">
+  {%- if brand_logo %}<img class="brand-lockup" src="{{ brand_logo }}" alt="{{ brand }}">
+  {%- elif brand and brand != 'HC User Management' %}<span class="brand-word">{{ brand }}</span>
+  {%- else %}<span class="brand-tile" aria-hidden="true">HC</span>{% endif %}
+  <span class="brand-divider" aria-hidden="true"></span>
+  <span class="brand-product"><span class="shimmer">User Management</span><span class="brand-dot" aria-hidden="true"></span></span>
+</span>
+{%- endmacro -%}
+{%- macro theme_toggle(back) -%}
+<form method="post" action="/tema" class="theme-form">
+  <input type="hidden" name="kembali" value="{{ back }}">
+  <button class="icon-button only-dark" type="submit" name="tema" value="light" title="Tema terang" aria-label="Ganti ke tema terang">{{ icon('sun') }}</button>
+  <button class="icon-button only-light" type="submit" name="tema" value="dark" title="Tema gelap" aria-label="Ganti ke tema gelap">{{ icon('moon') }}</button>
+</form>
+{%- endmacro -%}
 <!doctype html>
-<html lang="id">
+<html lang="id"{% if theme %} data-theme="{{ theme }}"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ brand }}{% endblock %} · HC User Management</title>
-  <link rel="stylesheet" href="{{ url_for('static', path='portal.css') }}">
+  <link rel="icon" href="/static/favicon.ico">
+  <link rel="stylesheet" href="/static/portal.css">
   {% block head %}{% endblock %}
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a class="brand" href="/">
-        <span class="brand-mark" aria-hidden="true">HC</span>
-        <span class="brand-name">{{ brand }}</span>
-      </a>
-      {% if nav %}
-      <nav class="nav">
-        {% for href, label in nav %}
-          <a href="{{ href }}" class="{{ 'active' if (href == '/' and current_path in ['/', '/direktori']) or (href != '/' and current_path.startswith(href)) else '' }}">{{ label }}</a>
-        {% endfor %}
-      </nav>
-      {% endif %}
-      {% if session %}
-      <div class="header-user">
-        <span class="avatar" aria-hidden="true">{{ session.full_name[:2] | upper }}</span>
-        <span class="who">
-          <span>{{ session.full_name }}</span>
-          <span class="muted small">{{ session.email }}</span>
-        </span>
-        <form method="post" action="/logout">
-          <button class="button button-ghost" type="submit">Keluar</button>
-        </form>
+{% if bare %}
+  {#- Reached from an email by somebody with no account here: no navigation,
+      nothing that suggests signing in first. -#}
+  <div class="bare">
+    <div class="bare-top">{{ brand_mark() }}{{ theme_toggle(current_path) }}</div>
+    {% block bare_content %}{% endblock %}
+  </div>
+{% else %}
+  <div class="shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="{{ '/' if session else '/login' }}">{{ brand_mark() }}</a>
+        <div class="topbar-tools">
+          {{ theme_toggle(return_to) }}
+          {% if session %}
+            {% if bell is defined %}
+            <details class="bell">
+              <summary class="icon-button" aria-label="{{ (bell.needsAttention ~ ' pengajuan perlu diperhatikan') if bell.needsAttention else 'Notifikasi — tidak ada yang perlu diperhatikan' }}">
+                {{ icon('bell') }}{% if bell.needsAttention %}<span class="bell-count">{{ bell.needsAttention }}</span>{% endif %}
+              </summary>
+              <div class="bell-panel">
+                <div class="bell-head">
+                  <strong>Notifikasi</strong>
+                  <span class="{{ 'warn' if bell.needsAttention else 'ok' }}">{{ (bell.needsAttention ~ ' perlu diperhatikan') if bell.needsAttention else 'Semua beres ✓' }}</span>
+                </div>
+                {% if not bell['items'] %}<p class="bell-empty">Tidak ada yang perlu diperhatikan.</p>{% endif %}
+                <ul>
+                  {% for n in bell['items'] %}
+                  <li><a href="/pengajuan/{{ n.id }}">
+                    <span class="bell-kind bell-{{ n.kind | lower }}"></span>
+                    <span class="bell-text">
+                      <strong>{{ n.subjectName }}</strong>
+                      <span>{{ TYPE_LABELS[n.type] }} ·
+                        {% if n.kind == 'FAILED' %}Gagal dijalankan — akun belum berubah
+                        {% elif n.kind == 'WAITING_TOO_LONG' %}Belum dijawab {{ 'manager' if n.stage == 'MANAGER' else 'tim CISO' }} — {{ waited_text(n.waitingHours) }}
+                        {% elif n.kind == 'REJECTED' %}Ditolak approver
+                        {% else %}Selesai dijalankan{% endif %}</span>
+                    </span>
+                  </a></li>
+                  {% endfor %}
+                </ul>
+                <a class="bell-all" href="/pengajuan">Lihat semua pengajuan</a>
+              </div>
+            </details>
+            {% endif %}
+            <span class="user-chip">
+              <span class="avatar" aria-hidden="true">{{ session.full_name | initials }}</span>
+              <span class="who"><span>{{ session.full_name }}</span><span>{{ session.email }}</span></span>
+            </span>
+            <form method="post" action="/logout">
+              <button class="signout" type="submit">{{ icon('sign-out') }}Keluar</button>
+            </form>
+          {% endif %}
+        </div>
       </div>
+    </header>
+
+    <div class="frame{{ ' wide' if wide }}">
+      {% if nav %}
+      <aside class="sidenav">
+        <nav aria-label="Navigasi utama">
+          {% for href, label, icon_name, active in nav %}
+          <a href="{{ href }}" class="{{ 'active' if active }}"{% if active %} aria-current="page"{% endif %}>{{ icon(icon_name) }}<span>{{ label }}</span></a>
+          {% endfor %}
+        </nav>
+      </aside>
       {% endif %}
+      <main class="main">
+        <div class="enter">{% block content %}{% endblock %}</div>
+      </main>
     </div>
-  </header>
-  <main class="page">
-    {% block content %}{% endblock %}
-  </main>
+
+    <footer class="footer">Human Capital · direktori karyawan dengan login Active Directory</footer>
+  </div>
+{% endif %}
 </body>
 </html>

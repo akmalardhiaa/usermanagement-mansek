@@ -1,13 +1,29 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, page_header %}
 {% block title %}Pengajuan baru{% endblock %}
 {% block content %}
-<section class="stack-lg">
-  <div><a class="small" href="/pengajuan">← Pengajuan</a><h1>Pengajuan baru</h1><p class="muted">Pilih jenis pengajuan.</p></div>
+<div class="stack">
+  <a class="back-link" href="/pengajuan">{{ icon('arrow-left') }}Kembali ke daftar pengajuan</a>
+  {{ page_header(eyebrow='Pengajuan', title='Pengajuan baru',
+                 description='Pilih jenis pengajuan. Setiap pengajuan disetujui manager lalu tim CISO lewat email sebelum dijalankan ke Active Directory.') }}
+  {% set suffix = ('&karyawan=' ~ employee_id) if employee_id else '' %}
   <div class="choices">
-    <a class="card choice" href="/pengajuan/baru?jenis=onboarding"><strong>Onboarding</strong><span class="muted small">Karyawan baru: akun dibuat di OU divisinya setelah disetujui.</span></a>
-    <a class="card choice" href="/pengajuan/baru?jenis=mutasi{{ '&karyawan=' ~ employee_id if employee_id }}"><strong>Mutasi</strong><span class="muted small">Pindah divisi, jabatan, atau manager; akun ikut pindah OU.</span></a>
-    <a class="card choice" href="/pengajuan/baru?jenis=profil{{ '&karyawan=' ~ employee_id if employee_id }}"><strong>Ubah profil</strong><span class="muted small">Nama, jabatan, status kepegawaian, lokasi.</span></a>
-    <a class="card choice" href="/pengajuan/baru?jenis=resign{{ '&karyawan=' ~ employee_id if employee_id }}"><strong>Resign / termination</strong><span class="muted small">Akun dinonaktifkan dan dipindah ke OU karantina.</span></a>
+    <a class="choice" href="/pengajuan/baru?jenis=onboarding">
+      <span class="choice-icon">{{ icon('user-plus') }}</span>
+      <span><strong>Onboarding</strong><span class="small">Karyawan baru yang belum punya akun: akun dibuat di OU divisinya setelah disetujui.</span></span>
+    </a>
+    <a class="choice" href="/pengajuan/baru?jenis=mutasi{{ suffix }}">
+      <span class="choice-icon">{{ icon('swap') }}</span>
+      <span><strong>Mutasi</strong><span class="small">Pindah divisi, jabatan, atau manager; akun ikut pindah ke OU divisi baru.</span></span>
+    </a>
+    <a class="choice" href="/pengajuan/baru?jenis=profil{{ suffix }}">
+      <span class="choice-icon">{{ icon('edit') }}</span>
+      <span><strong>Ubah profil</strong><span class="small">Nama, jabatan, status kepegawaian, lokasi.</span></span>
+    </a>
+    <a class="choice" href="/pengajuan/baru?jenis=resign{{ suffix }}">
+      <span class="choice-icon">{{ icon('user-x') }}</span>
+      <span><strong>Resign / termination</strong><span class="small">Menonaktifkan akun karyawan yang keluar dan memindahkannya ke OU karantina.</span></span>
+    </a>
   </div>
-</section>
+</div>
 {% endblock %}

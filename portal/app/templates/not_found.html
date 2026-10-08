@@ -1,9 +1,11 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon %}
 {% block title %}Tidak ditemukan{% endblock %}
 {% block content %}
-<section class="narrow"><div class="card">
-  <h1 class="card-title warn">Tidak ditemukan</h1>
-  <p>Data yang dicari tidak ada, atau sudah dihapus.</p>
-  <p><a href="/">Kembali ke direktori</a></p>
-</div></section>
+<section class="card pad narrow-card">
+  <span class="sheen-line" aria-hidden="true"></span>
+  <h1 class="notice-title warn">{{ icon('search') }}Tidak ditemukan</h1>
+  <p class="mt-2 muted">Data yang dicari tidak ada, atau sudah dihapus.</p>
+  <p class="mt-4"><a class="button button-ghost sm" href="/">{{ icon('arrow-left') }}Kembali ke direktori</a></p>
+</section>
 {% endblock %}

@@ -1,48 +1,69 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, page_header %}
 {% block title %}Status sistem{% endblock %}
+{% set TONE = {'ok': 'ok', 'warn': 'warn', 'fail': 'danger', 'skip': 'muted'} %}
+{% set WORD = {'ok': 'OK', 'warn': 'Perlu perhatian', 'fail': 'Gagal', 'skip': 'Dilewati'} %}
 {% macro checklist(title, checks) %}
-<div class="card card-flush">
-  <h2 class="card-title pad">{{ title }}</h2>
+<section class="card pad">
+  <h2 class="card-title">{{ title }}</h2>
   <ul class="checks">
     {% for c in checks %}
-    <li><div><strong>{{ c.name }}</strong><p class="muted small">{{ c.message }}</p></div>
-        <span class="badge badge-{{ {'ok':'ok','warn':'warn','fail':'danger','skip':'muted'}[c.status] }}">{{ {'ok':'OK','warn':'Perlu perhatian','fail':'Gagal','skip':'Dilewati'}[c.status] }}</span></li>
+    <li>
+      <div class="text"><h3>{{ c.name }}</h3><p>{{ c.message }}</p></div>
+      <span class="status status-{{ TONE[c.status] }}">{{ WORD[c.status] }}</span>
+    </li>
     {% endfor %}
   </ul>
-</div>
+</section>
 {% endmacro %}
 {% block content %}
-<section class="stack-lg">
-  <div class="page-head">
-    <div><h1>Status sistem</h1><p class="muted">Pemeriksaan hanya-baca untuk Active Directory, email, dan keamanan login.</p></div>
-    <a class="button button-ghost" href="/status">Periksa ulang</a>
-  </div>
-  {% if message %}<p class="alert alert-ok">{{ message }}</p>{% endif %}
+<div class="stack">
+  {% call page_header(eyebrow='Diagnostik', title='Status sistem',
+                      description='Pemeriksaan hanya-baca untuk Active Directory, email, dan keamanan login. Tidak ada yang diubah saat halaman ini dibuka.') %}
+    <a class="button button-ghost" href="/status">{{ icon('sync') }}Periksa ulang</a>
+  {% endcall %}
+  {% if message %}<div class="notice notice-ok"><p>{{ message }}</p></div>{% endif %}
+
+  {% set all_checks = ad + portal %}
+  {% set failed = all_checks | selectattr('status', 'equalto', 'fail') | list | length %}
+  {% set warned = all_checks | selectattr('status', 'equalto', 'warn') | list | length %}
+  <section class="card pad">
+    <h2 class="card-title">Ringkasan</h2>
+    <dl class="facts-grid four mt-3">
+      <div><dt>Status keseluruhan</dt><dd class="{{ 'danger' if failed else ('warn' if warned else 'ok') }}">{{ (failed ~ ' gagal') if failed else ((warned ~ ' perlu perhatian') if warned else 'Semua OK') }}</dd></div>
+      <div><dt>Active Directory</dt><dd>{{ ad[0].message if ad else '—' }}</dd></div>
+      <div><dt>Antrean email</dt><dd>{{ outbox.PENDING }} menunggu · {{ outbox.SENT }} terkirim · {{ outbox.DEAD }} gagal</dd></div>
+      <div><dt>Diperiksa pada</dt><dd>{{ checked_at }}</dd></div>
+    </dl>
+  </section>
 
   {{ checklist('Active Directory', ad) }}
   {{ checklist('Email & keamanan login', portal) }}
 
-  <div class="card">
+  <section class="card pad">
     <h2 class="card-title">Jalankan sekarang</h2>
-    <p class="muted small">Antrean email: {{ outbox.PENDING }} menunggu · {{ outbox.SENT }} terkirim · {{ outbox.DEAD }} gagal permanen.</p>
-    <form method="post" action="/status/jalankan" class="actions">
-      <button class="button button-secondary" name="apa" value="worker" type="submit">Jalankan worker</button>
-      <button class="button button-secondary" name="apa" value="email" type="submit">Kirim antrean email</button>
-      <button class="button button-secondary" name="apa" value="sinkron" type="submit">Sinkronkan dari AD</button>
+    <p class="card-sub">Biasanya tidak perlu: semuanya berjalan sendiri. Untuk mencoba ulang tanpa menunggu putaran berikutnya.</p>
+    <form method="post" action="/status/jalankan" class="actions mt-3">
+      <button class="button button-secondary" name="apa" value="worker" type="submit">{{ icon('play') }}Jalankan worker</button>
+      <button class="button button-secondary" name="apa" value="email" type="submit">{{ icon('send') }}Kirim antrean email</button>
+      <button class="button button-secondary" name="apa" value="sinkron" type="submit">{{ icon('sync') }}Sinkronkan dari AD</button>
     </form>
-  </div>
+  </section>
 
-  <div class="card card-flush">
-    <h2 class="card-title pad">Catatan login terakhir</h2>
-    {% if not events %}<p class="empty">Belum ada catatan login.</p>{% else %}
-    <table class="table">
-      <thead><tr><th>Waktu</th><th>Akun</th><th>Kejadian</th><th>Dari</th></tr></thead>
-      <tbody>{% for e in events %}
-        <tr><td class="muted small">{{ e.at | when }}</td><td>{{ e.username or '—' }}</td>
-            <td>{{ e.type }}{% if e.detail %}<span class="muted small block">{{ e.detail }}</span>{% endif %}</td>
-            <td class="muted small">{{ e.ip or '—' }}</td></tr>
-      {% endfor %}</tbody>
-    </table>{% endif %}
-  </div>
-</section>
+  <section class="card pad">
+    <h2 class="card-title">Catatan login terakhir</h2>
+    {% if not events %}<p class="card-sub">Belum ada catatan login.</p>{% else %}
+    <div class="table-wrap mt-3">
+      <table class="table compact">
+        <thead><tr><th>Waktu</th><th>Akun</th><th>Kejadian</th><th>Dari</th></tr></thead>
+        <tbody>{% for e in events %}
+          <tr><td class="nowrap">{{ e.at | when }}</td><td class="ink">{{ e.username or '—' }}</td>
+              <td class="ink">{{ e.type }}{% if e.detail %}<span class="block faint small">{{ e.detail }}</span>{% endif %}</td>
+              <td class="mono small">{{ e.ip or '—' }}</td></tr>
+        {% endfor %}</tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

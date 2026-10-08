@@ -1,9 +1,11 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon %}
 {% block title %}Akses ditolak{% endblock %}
 {% block content %}
-<section class="narrow"><div class="card">
-  <h1 class="card-title warn">Akses ditolak</h1>
-  <p>Peran Anda ({% for role in session.roles %}{{ ROLE_LABELS.get(role, role) }}{{ ', ' if not loop.last }}{% endfor %}) tidak mencakup halaman ini.</p>
-  <p><a href="/">Kembali ke direktori</a></p>
-</div></section>
+<section class="card pad narrow-card">
+  <span class="sheen-line" aria-hidden="true"></span>
+  <h1 class="notice-title warn">{{ icon('lock') }}Akses ditolak</h1>
+  <p class="mt-2 muted">Peran Anda ({% for role in session.roles %}{{ ROLE_LABELS.get(role, role) }}{{ ', ' if not loop.last }}{% endfor %}) tidak mencakup halaman ini.</p>
+  <p class="mt-4"><a class="button button-ghost sm" href="/">{{ icon('arrow-left') }}Kembali ke direktori</a></p>
+</section>
 {% endblock %}

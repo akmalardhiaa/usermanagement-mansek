@@ -1,103 +1,147 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, page_header, type_badge %}
 {% block title %}{{ type_label }}{% endblock %}
 {% macro error(field) %}{% if errors.get(field) %}<span class="field-error">{{ errors[field] }}</span>{% endif %}{% endmacro %}
-{% macro text(field, label, kind='text', required=true, list=None, placeholder='', min=None, max=None) %}
-  <label class="field">
-    <span>{{ label }}{% if not required %} <em class="muted">(opsional)</em>{% endif %}</span>
-    <input name="{{ field }}" type="{{ kind }}" value="{{ values.get(field, '') }}" {{ 'required' if required }}
-           {% if list %}list="{{ list }}"{% endif %} {% if placeholder %}placeholder="{{ placeholder }}"{% endif %}
-           {% if min %}min="{{ min }}"{% endif %} {% if max %}max="{{ max }}"{% endif %}>
+{% macro opt(required, hint=None) %}{% if hint %} <em>{{ hint }}</em>{% elif not required %} <em>(opsional)</em>{% endif %}{% endmacro %}
+{% macro text(field, label, icon_name='note', kind='text', required=true, list=None, placeholder='', min=None, max=None, span=false, hint=None) %}
+  <label class="field{{ ' has-error' if errors.get(field) }}{{ ' span-2' if span }}">
+    <span class="label">{{ label }}{{ opt(required, hint) }}</span>
+    <span class="control-wrap">{{ icon(icon_name) }}
+      <input name="{{ field }}" type="{{ kind }}" value="{{ values.get(field, '') }}"{{ ' required' if required }}
+             {%- if list %} list="{{ list }}"{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}
+             {%- if min %} min="{{ min }}"{% endif %}{% if max %} max="{{ max }}"{% endif %}>
+    </span>
     {{ error(field) }}
   </label>
 {% endmacro %}
-{% macro select(field, label, options, required=true, empty='— pilih —') %}
-  <label class="field">
-    <span>{{ label }}{% if not required %} <em class="muted">(opsional)</em>{% endif %}</span>
-    <select name="{{ field }}" {{ 'required' if required }}>
-      <option value="">{{ empty }}</option>
-      {% for value, text in options %}<option value="{{ value }}" {{ 'selected' if values.get(field, '') == value }}>{{ text }}</option>{% endfor %}
-    </select>
+{% macro select(field, label, options, icon_name='note', required=true, empty='— pilih —', span=false) %}
+  <label class="field{{ ' has-error' if errors.get(field) }}{{ ' span-2' if span }}">
+    <span class="label">{{ label }}{{ opt(required) }}</span>
+    <span class="control-wrap">{{ icon(icon_name) }}
+      <select name="{{ field }}"{{ ' required' if required }}>
+        <option value="">{{ empty }}</option>
+        {% for value, text in options %}<option value="{{ value }}"{{ ' selected' if values.get(field, '') == value }}>{{ text }}</option>{% endfor %}
+      </select>
+    </span>
     {{ error(field) }}
   </label>
+{% endmacro %}
+{% macro area(field, label, hint='(opsional)', rows=3) %}
+  <label class="field{{ ' has-error' if errors.get(field) }} span-2">
+    <span class="label">{{ label }} <em>{{ hint }}</em></span>
+    <span class="control-wrap top">{{ icon('note') }}<textarea name="{{ field }}" rows="{{ rows }}">{{ values.get(field, '') }}</textarea></span>
+    {{ error(field) }}
+  </label>
+{% endmacro %}
+{% macro section(label, icon_name) %}
+  <div>
+    <p class="section-label">{{ icon(icon_name) }}{{ label }}</p>
+    <div class="form-cols">{{ caller() }}</div>
+  </div>
 {% endmacro %}
 {% block content %}
-<section class="stack-lg">
-  <div>
-    <a class="small" href="{{ '/pengajuan/' ~ revising.id if revising else '/pengajuan/baru' }}">← Kembali</a>
-    <h1>{% if revising %}Revisi {{ type_label }}{% else %}{{ type_label }}{% endif %}</h1>
-    <p class="muted">Setelah dikirim, manager menerima email persetujuan, lalu tim CISO. Perubahan ke Active Directory baru
-      dijalankan setelah keduanya setuju.</p>
-  </div>
-  {% if errors.get('_') %}<p class="alert alert-error" role="alert">{{ errors['_'] }}</p>
-  {% elif errors %}<p class="alert alert-error" role="alert">Perbaiki isian yang ditandai.</p>{% endif %}
+<div class="stack">
+  <a class="back-link" href="{{ '/pengajuan/' ~ revising.id if revising else '/pengajuan/baru' }}">{{ icon('arrow-left') }}{{ 'Kembali ke pengajuan' if revising else 'Pilih jenis lain' }}</a>
+  {{ page_header(eyebrow='Pengajuan', title=('Revisi ' ~ type_label) if revising else type_label, compact=true,
+                 description='Setelah dikirim, manager menerima email persetujuan, lalu tim CISO. Perubahan ke Active Directory baru dijalankan setelah keduanya setuju.') }}
+
+  {% if errors.get('_') %}<div class="notice notice-error" role="alert"><p>{{ errors['_'] }}</p></div>
+  {% elif errors %}<div class="notice notice-error" role="alert"><p>Perbaiki isian yang ditandai.</p></div>{% endif %}
 
   <datalist id="titles">{% for t in job_titles %}<option value="{{ t }}">{% endfor %}</datalist>
-  <form method="post" action="{{ action }}" class="card stack">
-    <input type="hidden" name="jenis" value="{{ slug }}">
+  <section class="card pad-sm">
+    <form method="post" action="{{ action }}" class="stack">
+      <input type="hidden" name="jenis" value="{{ slug }}">
 
-    {% if kind == 'ONBOARDING' %}
-      <div class="grid-2">
-        {{ text('firstName', 'Nama depan') }}
-        {{ text('lastName', 'Nama belakang') }}
-        {{ text('displayName', 'Nama lengkap') }}
-        {{ text('email', 'Email kantor', 'email') }}
-        {{ text('userId', 'User ID (nama login AD)', placeholder='mis. ayu.prameswari') }}
-        {{ text('jobTitle', 'Jabatan', list='titles') }}
-        {{ select('department', 'Departemen / divisi', departments | map('string') | zip_self) }}
-        {{ select('managerEmail', 'Manager', managers | map_manager) }}
-        {{ select('employmentType', 'Status kepegawaian', employment.items()) }}
-        {{ text('expiredDate', 'Tanggal terakhir bekerja (kontrak)', 'date', false, min=bounds.newContractEnd[0], max=bounds.newContractEnd[1]) }}
-        {{ select('locationType', 'Lokasi', locations.items()) }}
-        {{ text('branchName', 'Nama cabang (bila cabang)', required=false) }}
-        {{ text('startDate', 'Tanggal mulai', 'date', false, min=bounds.startDate[0], max=bounds.startDate[1]) }}
-        {{ select('accessProfileId', 'Profil akses', profiles | map_profile, false, '— mengikuti divisi —') }}
+      {% if kind == 'ONBOARDING' %}
+      <div class="form-grid">
+        {% call section('Identitas', 'user') %}
+          {{ text('firstName', 'Nama depan', 'user') }}
+          {{ text('lastName', 'Nama belakang', 'user') }}
+          {{ text('displayName', 'Nama lengkap', 'id-card', span=true) }}
+          {{ text('email', 'Email kantor', 'mail', 'email') }}
+          {{ text('userId', 'User ID (nama login AD)', 'id-card', placeholder='mis. ayu.prameswari') }}
+        {% endcall %}
+        {% call section('Penempatan', 'briefcase') %}
+          {{ text('jobTitle', 'Jabatan', 'briefcase', list='titles') }}
+          {{ select('department', 'Departemen / divisi', departments | map('string') | zip_self, 'building') }}
+          {{ select('managerEmail', 'Manager', managers | map_manager, 'user-check', span=true) }}
+          {{ select('accessProfileId', 'Profil akses', profiles | map_profile, 'shield', false, '— mengikuti divisi —') }}
+          {{ text('startDate', 'Tanggal mulai', 'calendar', 'date', false, min=bounds.startDate[0], max=bounds.startDate[1]) }}
+        {% endcall %}
+        {% call section('Kepegawaian', 'id-card') %}
+          {{ select('employmentType', 'Status kepegawaian', employment.items(), 'id-card') }}
+          {{ text('expiredDate', 'Akhir kontrak', 'calendar', 'date', false, min=bounds.newContractEnd[0], max=bounds.newContractEnd[1], hint='(bila kontrak)') }}
+          {{ select('locationType', 'Lokasi', locations.items(), 'map-pin') }}
+          {{ text('branchName', 'Nama cabang', 'building', required=false, hint='(bila cabang)') }}
+        {% endcall %}
+        {% call section('Keterangan', 'note') %}
+          {{ area('jobDescription', 'Keterangan jabatan') }}
+        {% endcall %}
       </div>
-      <label class="field"><span>Keterangan jabatan <em class="muted">(opsional)</em></span>
-        <textarea name="jobDescription" rows="3">{{ values.get('jobDescription', '') }}</textarea>{{ error('jobDescription') }}</label>
 
-    {% elif kind == 'MOVEMENT' %}
-      <div class="grid-2">
-        {{ select('employeeId', 'Karyawan', employees | map_employee) }}
-        {{ select('toDepartment', 'Departemen tujuan', departments | map('string') | zip_self) }}
-        {{ text('toJobTitle', 'Jabatan tujuan', list='titles') }}
-        {{ select('toManagerEmail', 'Manager tujuan', managers | map_manager) }}
-        {{ select('accessProfileId', 'Profil akses baru', profiles | map_profile, false, '— tidak berubah —') }}
-        {{ text('effectiveAt', 'Berlaku mulai', 'date', false, min=bounds.effectiveAt[0], max=bounds.effectiveAt[1]) }}
+      {% elif kind == 'MOVEMENT' %}
+      <div class="form-grid">
+        {% call section('Karyawan', 'user') %}
+          {{ select('employeeId', 'Karyawan', employees | map_employee, 'user', span=true) }}
+          {{ text('effectiveAt', 'Berlaku mulai', 'calendar', 'date', false, min=bounds.effectiveAt[0], max=bounds.effectiveAt[1]) }}
+        {% endcall %}
+        {% call section('Tujuan', 'briefcase') %}
+          {{ select('toDepartment', 'Departemen tujuan', departments | map('string') | zip_self, 'building') }}
+          {{ text('toJobTitle', 'Jabatan tujuan', 'briefcase', list='titles') }}
+          {{ select('toManagerEmail', 'Manager tujuan', managers | map_manager, 'user-check', span=true) }}
+          {{ select('accessProfileId', 'Profil akses baru', profiles | map_profile, 'shield', false, '— tidak berubah —', span=true) }}
+        {% endcall %}
+        {% call section('Alasan', 'note') %}
+          {{ area('reason', 'Alasan pemindahan') }}
+          {{ area('toJobDescription', 'Keterangan jabatan', rows=2) }}
+        {% endcall %}
       </div>
-      <label class="field"><span>Alasan <em class="muted">(opsional)</em></span>
-        <textarea name="reason" rows="3">{{ values.get('reason', '') }}</textarea>{{ error('reason') }}</label>
 
-    {% elif kind == 'TERMINATION' %}
-      <div class="grid-2">
-        {{ select('employeeId', 'Karyawan', employees | map_employee) }}
-        {{ text('lastWorkingDate', 'Tanggal terakhir bekerja', 'date', min=bounds.lastWorkingDate[0], max=bounds.lastWorkingDate[1]) }}
-        {{ select('reasonCategory', 'Kategori alasan', reasons.items(), false) }}
-        {{ text('handoverTo', 'Serah terima kepada', required=false) }}
+      {% elif kind == 'TERMINATION' %}
+      <div class="form-grid">
+        {% call section('Karyawan', 'user') %}
+          {{ select('employeeId', 'Karyawan', employees | map_employee, 'user', span=true) }}
+          {{ text('lastWorkingDate', 'Tanggal terakhir bekerja', 'calendar', 'date', min=bounds.lastWorkingDate[0], max=bounds.lastWorkingDate[1]) }}
+          {{ select('reasonCategory', 'Kategori alasan', reasons.items(), 'note', false) }}
+          {{ text('handoverTo', 'Serah terima kepada', 'user-check', required=false, span=true) }}
+        {% endcall %}
+        {% call section('Catatan', 'note') %}
+          <p class="field-hint span-2">Akun dinonaktifkan pagi hari setelah tanggal terakhir bekerja, lalu dipindah ke OU karantina.</p>
+          {{ area('note', 'Catatan internal HC', '(tidak dikirim lewat email)', rows=4) }}
+        {% endcall %}
       </div>
-      <p class="muted small">Akun dinonaktifkan pagi hari setelah tanggal terakhir bekerja.</p>
-      <label class="field"><span>Catatan internal HC <em class="muted">(tidak dikirim lewat email)</em></span>
-        <textarea name="note" rows="3">{{ values.get('note', '') }}</textarea>{{ error('note') }}</label>
 
-    {% else %}
-      <div class="grid-2">
-        {{ select('employeeId', 'Karyawan', employees | map_employee) }}
-        {{ text('displayName', 'Nama lengkap') }}
-        {{ text('firstName', 'Nama depan') }}
-        {{ text('lastName', 'Nama belakang') }}
-        {{ text('jobTitle', 'Jabatan', list='titles') }}
-        {{ select('department', 'Departemen / divisi', departments | map('string') | zip_self) }}
-        {{ select('employmentType', 'Status kepegawaian', employment.items()) }}
-        {{ text('expiredDate', 'Tanggal terakhir bekerja (kontrak)', 'date', false, min=bounds.newContractEnd[0], max=bounds.newContractEnd[1]) }}
-        {{ select('locationType', 'Lokasi', locations.items()) }}
-        {{ text('branchName', 'Nama cabang (bila cabang)', required=false) }}
+      {% else %}
+      <div class="form-grid">
+        {% call section('Identitas', 'user') %}
+          {{ select('employeeId', 'Karyawan', employees | map_employee, 'user', span=true) }}
+          {{ text('displayName', 'Nama lengkap', 'id-card', span=true) }}
+          {{ text('firstName', 'Nama depan', 'user') }}
+          {{ text('lastName', 'Nama belakang', 'user') }}
+        {% endcall %}
+        {% call section('Penempatan', 'briefcase') %}
+          {{ text('jobTitle', 'Jabatan', 'briefcase', list='titles') }}
+          {{ select('department', 'Departemen / divisi', departments | map('string') | zip_self, 'building') }}
+          {{ area('jobDescription', 'Keterangan jabatan', rows=2) }}
+        {% endcall %}
+        {% call section('Kepegawaian', 'id-card') %}
+          {{ select('employmentType', 'Status kepegawaian', employment.items(), 'id-card') }}
+          {{ text('expiredDate', 'Akhir kontrak', 'calendar', 'date', false, min=bounds.newContractEnd[0], max=bounds.newContractEnd[1], hint='(bila kontrak)') }}
+          {{ select('locationType', 'Lokasi', locations.items(), 'map-pin') }}
+          {{ text('branchName', 'Nama cabang', 'building', required=false, hint='(bila cabang)') }}
+        {% endcall %}
+        {% call section('Catatan', 'note') %}
+          {{ area('description', 'Catatan HC', '(internal)', rows=2) }}
+        {% endcall %}
       </div>
-      <label class="field"><span>Keterangan jabatan <em class="muted">(opsional)</em></span>
-        <textarea name="jobDescription" rows="2">{{ values.get('jobDescription', '') }}</textarea></label>
-      <label class="field"><span>Catatan HC <em class="muted">(internal)</em></span>
-        <textarea name="description" rows="2">{{ values.get('description', '') }}</textarea></label>
-    {% endif %}
+      {% endif %}
 
-    <div><button class="button button-primary button-inline" type="submit">{{ 'Kirim revisi' if revising else 'Kirim pengajuan' }}</button></div>
-  </form>
-</section>
+      <div class="form-foot">
+        <button class="button button-primary" type="submit">{{ icon('send') }}{{ 'Kirim revisi' if revising else 'Kirim pengajuan' }}</button>
+        <p>{% if kind == 'ONBOARDING' %}Akun belum dibuat — baru dibuat di AD setelah manager dan tim CISO menyetujui.{% else %}Akun belum berubah sampai manager dan tim CISO menyetujui dan worker menjalankannya.{% endif %}</p>
+      </div>
+    </form>
+  </section>
+</div>
 {% endblock %}
