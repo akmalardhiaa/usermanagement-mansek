@@ -32,6 +32,13 @@ layanan AD menolak setiap permintaan kecuali `/v1/health`.
 - Satu akun Windows khusus/terkelola yang memiliki Podman machine. Jangan
   menjalankan machine sebagai SYSTEM; machine Podman bersifat per-user.
 
+## MTU jaringan
+
+Di sebagian jaringan paket besar dibuang diam-diam: TCP tersambung, tetapi
+jabat tangan TLS macet (podman load/pull, SMTP, LDAPS). `perbaiki-mtu.ps1`
+memasang layanan systemd kecil di mesin Podman yang menurunkan MTU `eth0` ke
+1280 setiap kali mesin menyala. Jalankan sekali setelah `podman machine init`.
+
 ## Image
 
 Dua cara, pilih salah satu:

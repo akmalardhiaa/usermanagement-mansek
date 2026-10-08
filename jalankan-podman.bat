@@ -77,6 +77,10 @@ if not %errorlevel%==0 (
   exit /b 1
 )
 
+REM MTU 1280: di sebagian jaringan paket besar dibuang diam-diam dan TLS macet
+REM (email, LDAPS, unduhan image). Aman di jaringan mana pun.
+wsl -d %MESIN% -u root -- ip link set dev eth0 mtu 1280 >nul 2>&1
+
 REM Letak folder ini seperti yang dilihat dari dalam mesin.
 for /f "delims=" %%p in ('wsl -d %MESIN% -u root -e wslpath -a "%CD%"') do set "DIRLINUX=%%p"
 

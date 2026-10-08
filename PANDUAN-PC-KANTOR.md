@@ -119,6 +119,13 @@ Set-Location C:\hc-portal
 
 ## 3. Muat image
 
+Pertama, sekali saja, pasang perbaikan jaringan untuk mesin Podman (aman di
+jaringan mana pun; mencegah TLS macet saat memuat image, kirim email, dan LDAPS):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy\windows\perbaiki-mtu.ps1
+```
+
 Taruh `hc-images.tar.gz` di `C:\hc-portal`, periksa sidik jarinya, lalu muat:
 
 ```powershell
@@ -310,7 +317,7 @@ pertama kali dengan kata sandinya setelah reset akan mendaftarkan HP-nya.
 | Gejala | Penyebab & jalan keluar |
 |---|---|
 | `machine did not transition into running state: ssh error` atau `Cannot connect to Podman` | Mesin menyala setengah. `podman machine stop`, `wsl --shutdown`, `podman machine start`. |
-| Unduhan macet / `TLS handshake timeout` saat `machine init`, `load`, atau build | Masalah MTU jaringan. `podman machine ssh -- sudo ip link set dev eth0 mtu 1280`, lalu ulangi. (Hilang setelah mesin restart.) |
+| Unduhan macet / `TLS handshake timeout`, atau *Status sistem*: "SMTP tidak dapat dihubungi: The handshake operation timed out" | Masalah MTU jaringan. Jalankan `powershell -ExecutionPolicy Bypass -File .\deploy\windows\perbaiki-mtu.ps1` (menetap setelah restart), lalu ulangi. |
 | Container berhenti sendiri, `podman machine` mati saat build | Memori mesin kurang. `podman machine stop`, `podman machine set --memory 4096`, `podman machine start`. |
 | Kode 2FA **selalu** salah untuk semua orang | Jam mesin Podman melenceng (sering setelah PC sleep). `podman machine stop`, `wsl --shutdown`, `podman machine start`. Pastikan jam HP otomatis. |
 | Satu orang kodenya selalu salah | Jam HP-nya tidak otomatis, atau HP lain. Atur jam otomatis; kalau tetap, reset 2FA orang itu. |
