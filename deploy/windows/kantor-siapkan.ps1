@@ -23,7 +23,7 @@ try {
     Write-Ok "mesin Podman menyala"
 
     Write-Step "[2/5] Perbaikan jaringan (MTU)"
-    & (Join-Path $PSScriptRoot "perbaiki-mtu.ps1") | Out-Null
+    & (Join-Path $PSScriptRoot "perbaiki-mtu.ps1") 6>$null | Out-Null
     Write-Ok "MTU 1280 dipasang, tetap berlaku setelah restart"
 
     Write-Step "[3/5] Memuat image portal dan layanan AD"
