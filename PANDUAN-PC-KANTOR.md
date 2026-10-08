@@ -43,7 +43,7 @@ bersama `AD_SERVICE_TOKEN`.
 | **Akun layanan** + kata sandinya, didelegasikan hanya ke OU karyawan dan OU karantina (bukan Domain Admins) | `AD_BIND_DN`, `AD_BIND_PASSWORD` |
 | DN OU karyawan, OU per divisi, OU karantina | `AD_OU_*`, `AD_DEPARTMENT_*`, `AD_QUARANTINE_OU`, `AD_MANAGED_OUS` |
 | DN group HC (yang boleh masuk portal), group admin, group tim CISO, group akses | `AD_GROUP_*`, `CISO_APPROVER_GROUP`, `AD_ACCESS_GROUP_*` |
-| Server email (SMTP): host, port, login atau relay tanpa login, alamat pengirim | `SMTP_*` |
+| Server email (SMTP): host, port, login atau relay tanpa login, alamat pengirim — **atau**, bila Microsoft 365 mematikan login SMTP, app registration Graph dengan izin Mail.Send | `SMTP_*`, atau `EMAIL_DRIVER=graph` + `GRAPH_*` |
 | Nama DNS untuk portal + sertifikat HTTPS-nya (untuk IIS) | `APP_BASE_URL` |
 | Hak **administrator** di PC ini (untuk memasang WSL2, Podman, IIS) | — |
 | Apakah akun baru boleh aktif tanpa password? (lihat bagian 10) | — |

@@ -14,7 +14,7 @@ from app.domain.catalog import DEPARTMENTS, department_ou, department_pairs, dep
 from app.domain.lifecycle import jakarta_text
 from app.domain.store import now_iso
 from app.domain.sync import sync_sources
-from app.mail.mailer import MailError, SmtpMailer, smtp_config, smtp_problem
+from app.mail.mailer import GraphMailer, MailError, SmtpMailer, graph_config, graph_problem, smtp_config, smtp_problem
 from app.web.context import THEME_COOKIE, THEMES, Context
 
 JAKARTA = timezone(timedelta(hours=7))
@@ -182,11 +182,23 @@ def portal_checks(ctx: Context, env) -> list[dict]:
                                      f"SMTP {config.host}:{config.port} terhubung, {login}, pengirim {config.sender},{tls}{redirected}"))
             except MailError as error:
                 checks.append(_check("email", "Pengiriman email", "fail", f"SMTP {config.host}:{config.port} gagal: {error}"))
+    elif driver == "graph":
+        problem = graph_problem(env)
+        if problem:
+            checks.append(_check("email", "Pengiriman email", "fail", problem))
+        else:
+            config = graph_config(env)
+            try:
+                GraphMailer(config).verify()
+                checks.append(_check("email", "Pengiriman email", "warn" if redirect else "ok",
+                                     f"Microsoft Graph: token aplikasi diperoleh, pengirim {config.sender}.{redirected}"))
+            except MailError as error:
+                checks.append(_check("email", "Pengiriman email", "fail", f"Microsoft Graph gagal: {error}"))
     elif driver == "file":
         checks.append(_check("email", "Pengiriman email", "fail" if settings.production else "warn",
                              "EMAIL_DRIVER=file: email hanya ditulis ke folder data/outbox-mail, tidak ada yang terkirim."))
     else:
-        checks.append(_check("email", "Pengiriman email", "fail", f"EMAIL_DRIVER=\"{driver}\" tidak bisa dipakai. Isi smtp."))
+        checks.append(_check("email", "Pengiriman email", "fail", f"EMAIL_DRIVER=\"{driver}\" tidak bisa dipakai. Isi smtp atau graph."))
 
     poll = minutes_or_seconds(env.get("OUTBOX_POLL_SECONDS"), 30, "OUTBOX_POLL_SECONDS")
     stuck = ctx.background.get("mail_error")
