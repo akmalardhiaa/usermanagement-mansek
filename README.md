@@ -160,6 +160,8 @@ menjalankan keduanya dan membangun kedua image dengan Podman.
 
 ## Pindah ke PC kantor
 
-`siapkan-pindah.bat` membangun kedua image dan menyimpannya sebagai satu berkas
-`hc-images.tar.gz`, bersama berkas proyek tanpa rahasia dan data. Langkah di
-kantor: [PANDUAN-PC-KANTOR.md](PANDUAN-PC-KANTOR.md).
+`siapkan-pindah.bat` membangun kedua image dan menghasilkan satu berkas
+`hc-portal-kantor.zip`: folder proyek tanpa rahasia dan data, dengan
+`hc-images.tar.gz` di dalamnya. Di kantor semuanya lewat klik dua kali dari File
+Explorer (`KANTOR-1` sampai `KANTOR-3`, lihat [MULAI-DI-SINI.txt](MULAI-DI-SINI.txt)).
+Panduan lengkap: [PANDUAN-PC-KANTOR.md](PANDUAN-PC-KANTOR.md).

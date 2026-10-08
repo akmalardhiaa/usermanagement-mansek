@@ -2,7 +2,7 @@
 # Podman yang menurunkan MTU eth0 ke 1280 setiap kali mesin menyala.
 #
 # Kenapa: di sebagian jaringan (VPN, Wi-Fi kantor/rumah tertentu) paket besar
-# dibuang diam-diam. Koneksi TCP tersambung, tetapi jabat tangan TLS macet —
+# dibuang diam-diam. Koneksi TCP tersambung, tetapi jabat tangan TLS macet:
 # gejalanya "TLS handshake timeout" saat podman pull/load, dan "SMTP tidak
 # dapat dihubungi: The handshake operation timed out" di halaman Status
 # sistem. 1280 adalah ukuran minimum IPv6, jadi aman di jaringan mana pun;

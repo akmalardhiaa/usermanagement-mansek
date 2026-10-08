@@ -8,6 +8,20 @@ Ikuti berurutan. Setiap bagian ditutup dengan **cek** — jangan lanjut sebelum
 ceknya berhasil. Detail teknis tambahan ada di
 [deploy/windows/README.md](deploy/windows/README.md).
 
+> **Cara cepat lewat File Explorer (tanpa VS Code, tanpa mengetik perintah).**
+> Bagian 1–7 di bawah sudah dibungkus jadi berkas yang tinggal diklik dua kali,
+> semuanya ada di folder `C:\hc-portal`:
+>
+> | Berkas | Menggantikan |
+> |---|---|
+> | `KANTOR-1-pasang-podman.bat` (klik kanan → *Run as administrator*) | bagian 1 |
+> | `KANTOR-2-siapkan.bat` | bagian 3 dan 5 (memuat image, membuat `.env.production.local` dengan dua kunci rahasia sudah terisi, membukanya di Notepad) |
+> | `KANTOR-3-jalankan.bat` | bagian 6 (memeriksa pengaturan, menyalakan, membuka browser) |
+> | `KANTOR-hentikan.bat`, `KANTOR-lihat-log.bat` | mematikan portal, melihat penyebab masalah |
+>
+> Urutan singkatnya juga ada di `MULAI-DI-SINI.txt`. Perintah di bawah tetap
+> berlaku bila lebih suka PowerShell.
+
 ```
  Staf HC (browser)              Manajer & tim CISO (email)
         │ https://<nama-portal>          │ klik Setujui / Tolak
