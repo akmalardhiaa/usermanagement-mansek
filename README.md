@@ -53,9 +53,19 @@ Tanpa `AD_LDAP_URL` dan dengan `DEMO_LOGIN=on`, layanan AD memakai akun demo:
 **Portal hanya untuk HC.** Manager dan tim CISO tidak punya akses portal: mereka
 menyetujui dari email, lewat tautan sekali pakai yang terikat ke alamat mereka
 sendiri. Akun demo lain sengaja ditolak, persis seperti manager di production.
-Di mode demo email tidak terkirim; isinya ditulis sebagai berkas HTML di
-`/app/data/outbox-mail` di dalam container portal. Akun demo selalu ditolak di
-production.
+Di laptop email tidak keluar dari komputer: semuanya masuk ke **kotak masuk
+uji** di <http://localhost:8026> (container `hc-mailpit`). Buka email untuk
+manager atau tim CISO di sana dan klik **Setujui** / **Tolak** untuk mencoba alur
+persetujuan dari awal sampai akhir. Akun demo selalu ditolak di production.
+
+Mulai lagi dari data bersih (pengajuan, aktivitas, sesi, dan 2FA laptop hilang;
+7 karyawan demo dibuat ulang):
+
+```powershell
+podman compose down
+podman volume rm hc-dev-data
+podman compose up -d
+```
 
 ## Alur pengajuan
 

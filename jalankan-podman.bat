@@ -110,7 +110,7 @@ echo   Portal berjalan di  http://localhost:3000
 echo  ==========================================================
 echo.
 echo   Login demo:  admin / admin12345   - selama AD belum disambungkan
-echo   Email demo:  tidak terkirim; ditulis sebagai berkas di volume hc-dev-data
+echo   Kotak masuk uji:  http://localhost:8026   - semua email portal masuk ke sini
 echo.
 echo   Melihat log      :  wsl -d %MESIN% -u root -- podman logs -f hc-portal
 echo   Menghentikan     :  hentikan-podman.bat

@@ -2,9 +2,11 @@
 #
 #   podman compose up -d --build        (or double-click jalankan-podman.bat)
 #
-# Then open http://localhost:3000. Settings come from .env.dev.local (copy
-# .env.example; jalankan-podman.bat makes one with fresh secrets on the first
-# run). The office runs compose.production.yml instead.
+# Then open http://localhost:3000, and the test inbox at http://localhost:8026
+# where every email the portal sends lands (click Setujui/Tolak there).
+# Settings come from .env.dev.local (copy .env.example; jalankan-podman.bat
+# makes one with fresh secrets on the first run). The office runs
+# compose.production.yml instead, which has no test inbox.
 
 name: hc
 
@@ -33,6 +35,7 @@ services:
       start_period: 10s
     depends_on:
       - ad-service
+      - mailpit
     restart: unless-stopped
 
   # No ports: reachable only from the portal, inside this network.
@@ -47,6 +50,15 @@ services:
     volumes:
       # The company CA, read-only, when AD is configured.
       - ./certs:/run/certs:ro
+    restart: unless-stopped
+
+  # Laptop only: catches every email (SMTP mailpit:1025) and shows it at
+  # http://localhost:8026. Nothing leaves this computer.
+  mailpit:
+    image: docker.io/axllent/mailpit:latest
+    container_name: hc-mailpit
+    ports:
+      - "127.0.0.1:8026:8025"
     restart: unless-stopped
 
 volumes:

@@ -10,7 +10,7 @@ that queues it, so no new path can forget to.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable, TypeVar
 
@@ -120,8 +120,11 @@ def seed_demo_roster(store: Store) -> None:
     def seed(data: dict) -> None:
         if data["employees"]:
             return
-        at = now_iso()
-        for first, last, email, title, department, manager, manager_email, status in DEMO_ROSTER:
+        # Joined long ago, a month apart: a demo roster created "just now" put
+        # the new-hire badge on every row, and a real new hire stood out from nothing.
+        start = datetime.now(timezone.utc) - timedelta(days=400)
+        for index, (first, last, email, title, department, manager, manager_email, status) in enumerate(DEMO_ROSTER):
+            at = (start + timedelta(days=30 * index)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
             data["employees"].append(
                 {
                     "id": new_id("emp"),
