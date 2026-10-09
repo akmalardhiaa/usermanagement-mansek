@@ -36,6 +36,7 @@ class FakeDirectory:
         self.fail_on: str | None = None  # one write kind that fails, once
         self.writes: list[tuple] = []
         self.ous = {PEOPLE, QUARANTINE, f"OU=Staff,{PEOPLE}", f"OU=Engineering,{PEOPLE}", BASE}
+        self.missing_ous: set[str] = set()
         self.groups: dict[str, list[dict]] = {}
 
     # ---- seeding
@@ -128,6 +129,8 @@ class FakeDirectory:
 
     def move(self, guid: str, ou: str) -> None:
         self._guard("move")
+        if any(same_dn(ou, missing) for missing in self.missing_ous):
+            raise AdError("NOT_FOUND", f"OU {ou} tidak ada.")
         self.writes.append(("move", guid, ou))
         self._get(guid)["ou"] = ou
 
@@ -138,4 +141,6 @@ class FakeDirectory:
 
     def entry_exists(self, dn: str) -> bool:
         self._guard()
+        if any(same_dn(dn, missing) for missing in self.missing_ous):
+            return False
         return any(same_dn(dn, ou) for ou in self.ous) or dn.lower().endswith(PEOPLE.lower())

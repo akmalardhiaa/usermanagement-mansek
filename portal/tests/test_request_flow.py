@@ -263,3 +263,58 @@ def test_one_open_request_per_employee(office):
     raise_request(client, form)
     second = client.post("/pengajuan/baru", data=form, headers=ORIGIN)
     assert second.status_code == 409
+
+
+def approve_both(client, ctx, folder):
+    seen = len(mails(folder))
+    approve(client, send_and_collect(ctx, folder, seen)[0]["token"])
+    approve(client, send_and_collect(ctx, folder, seen + 1)[0]["token"])
+
+
+def test_a_missing_division_ou_stops_the_run_before_anything_changes(office):
+    client, ctx, directory, folder = office
+    rizky = employee(ctx, "rizky.maulana@example.com")
+    missing = f"OU=Legal,{PEOPLE}"
+    directory.missing_ous.add(missing)
+    request_id = raise_request(client, {"jenis": "mutasi", "employeeId": rizky["id"], "toDepartment": "Legal",
+                                        "toJobTitle": "Legal Officer", "toManagerEmail": "dimas.anggara@example.com"})
+    approve_both(client, ctx, folder)
+    writes_before = list(directory.writes)
+    assert ctx.worker.run_due()["failed"] == 1
+    assert directory.writes == writes_before  # the account was not touched
+    page = client.get(f"/pengajuan/{request_id}").text
+    assert "OU tujuan belum ada" in page and "Coba lagi" in page
+
+    directory.missing_ous.clear()  # IT creates the OU
+    ctx.lifecycle.retry(request_id, {"name": "Ops", "email": "ops@example.com", "userId": "ops"})
+    assert ctx.worker.run_due()["completed"] == 1
+    assert directory.find_by_name("rizky.maulana")["ou"] == missing
+
+
+def test_a_retry_after_a_half_finished_run_is_not_mistaken_for_someone_elses_change(office, tmp_path):
+    """The run wrote the new division, then stopped; the AD sync copied it into the record."""
+    client, ctx, directory, folder = office
+    rizky = employee(ctx, "rizky.maulana@example.com")
+    request_id = raise_request(client, {"jenis": "mutasi", "employeeId": rizky["id"], "toDepartment": "Risk Management",
+                                        "toJobTitle": "Risk Officer", "toManagerEmail": "dimas.anggara@example.com"})
+    approve_both(client, ctx, folder)
+    directory.fail_on = "move"
+    assert ctx.worker.run_due()["failed"] == 1
+    sync_employees(ctx.store, directory, {**DIRECTORY_ENV, "AD_SYNC_OUS": PEOPLE})
+    assert employee(ctx, "rizky.maulana@example.com")["department"] == "Risk Management"
+
+    ctx.lifecycle.retry(request_id, {"name": "Ops", "email": "ops@example.com", "userId": "ops"})
+    report = ctx.worker.run_due()
+    assert report["completed"] == 1, report
+    assert directory.find_by_name("rizky.maulana")["ou"] == f"OU=Risk Management,{PEOPLE}"
+
+
+def test_a_change_somebody_else_made_still_stops_the_run(office):
+    client, ctx, directory, folder = office
+    rizky = employee(ctx, "rizky.maulana@example.com")
+    request_id = raise_request(client, {"jenis": "mutasi", "employeeId": rizky["id"], "toDepartment": "Risk Management",
+                                        "toJobTitle": "Risk Officer", "toManagerEmail": "dimas.anggara@example.com"})
+    approve_both(client, ctx, folder)
+    ctx.store.mutate(lambda data: next(e for e in data["employees"] if e["id"] == rizky["id"]).update(department="Finance"))
+    assert ctx.worker.run_due()["failed"] == 1
+    assert "berubah sejak pengajuan disetujui" in client.get(f"/pengajuan/{request_id}").text

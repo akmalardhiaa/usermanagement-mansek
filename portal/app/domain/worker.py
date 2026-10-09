@@ -135,6 +135,11 @@ class Worker:
             if existing and not before:
                 return fail("AD_NOT_FOUND", f"Objek direktori {guid} tidak ditemukan. Akun mungkin sudah dihapus atau dipindahkan di luar aplikasi ini.", guid)
             plan = build_plan(request["payload"], before, self.env)
+            for step in plan["steps"]:
+                target = step["params"].get("ou") if step["key"] in ("create-account", "move-ou") else None
+                if target and step["key"] not in done_keys and not self.ad.entry_exists(target):
+                    return fail("AD_NOT_FOUND", f"OU tujuan belum ada di Active Directory: {target}. Belum ada yang diubah "
+                                                "pada akun. Minta IT membuat OU itu, lalu tekan Coba lagi.", guid)
         except AdError as error:
             return fail(ERROR_CODES.get(error.kind, "UNKNOWN"), str(error), guid)
         except CatalogError as error:
@@ -192,16 +197,34 @@ class Worker:
 
     @staticmethod
     def _drift(request: dict, employee: dict | None) -> str | None:
+        """A change to the record since approval that this request did not make itself."""
         snapshot = request.get("beforeSnapshot")
         if not snapshot:
             return None
         if not employee:
             return "Catatan karyawan tidak ditemukan lagi."
+        # A run that stopped half-way has already written some of these, and the
+        # AD sync copies them into the record: that is this request, not drift.
+        intended = Worker._intended(request["payload"])
         for field, expected in snapshot.items():
             current = employee.get(field, "")
-            if current != expected:
+            if current != expected and current != intended.get(field, expected):
                 return f'{field} berubah sejak pengajuan disetujui: "{expected}" menjadi "{current}".'
         return None
+
+    @staticmethod
+    def _intended(payload: dict) -> dict:
+        """The record's fields as this request leaves them."""
+        kind = payload.get("kind")
+        if kind == "MOVEMENT":
+            return {"department": payload.get("toDepartment"), "jobTitle": payload.get("toJobTitle"),
+                    "managerEmail": payload.get("toManagerEmail")}
+        if kind == "PROFILE_UPDATE":
+            profile = payload.get("profile", {})
+            return {key: profile.get(key) for key in ("displayName", "jobTitle", "department")}
+        if kind == "TERMINATION":
+            return {"status": "DISABLED"}
+        return {}
 
     # ------------------------------------------------------------- finishing
 
