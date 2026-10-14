@@ -60,23 +60,23 @@
           {{ text('lastName', 'Nama belakang', 'user') }}
           {{ text('displayName', 'Nama lengkap', 'id-card', span=true) }}
           {{ text('email', 'Email kantor', 'mail', 'email') }}
-          {{ text('userId', 'User ID (nama login AD)', 'id-card', placeholder='mis. ayu.prameswari') }}
+          {{ text('userId', 'sAMAccountName (nama login AD)', 'id-card', placeholder='mis. AMUMUBAROK367') }}
         {% endcall %}
         {% call section('Penempatan', 'briefcase') %}
-          {{ text('jobTitle', 'Jabatan', 'briefcase', list='titles') }}
+          {{ text('jobTitle', 'Title / jabatan', 'briefcase', list='titles') }}
           {{ select('department', 'Departemen / divisi', departments | map('string') | zip_self, 'building') }}
           {{ select('managerEmail', 'Manager', managers | map_manager, 'user-check', span=true) }}
-          {{ select('accessProfileId', 'Profil akses', profiles | map_profile, 'shield', false, '— mengikuti divisi —') }}
-          {{ text('startDate', 'Tanggal mulai', 'calendar', 'date', false, min=bounds.startDate[0], max=bounds.startDate[1]) }}
         {% endcall %}
         {% call section('Kepegawaian', 'id-card') %}
+          {{ select('workerCategory', 'Jenis pekerja', worker_categories.items(), 'id-card') }}
           {{ select('employmentType', 'Status kepegawaian', employment.items(), 'id-card') }}
           {{ text('expiredDate', 'Akhir kontrak', 'calendar', 'date', false, min=bounds.newContractEnd[0], max=bounds.newContractEnd[1], hint='(bila kontrak)') }}
           {{ select('locationType', 'Lokasi', locations.items(), 'map-pin') }}
-          {{ text('branchName', 'Nama cabang', 'building', required=false, hint='(bila cabang)') }}
+          {{ select('branchName', 'Nama cabang', branches | zip_self, 'building', false, '— pilih bila cabang —') }}
         {% endcall %}
         {% call section('Keterangan', 'note') %}
-          {{ area('jobDescription', 'Keterangan jabatan') }}
+          {{ area('jobDescription', 'Description di AD', '(contoh: TI Helpdesk)') }}
+          <p class="field-hint span-2">CN dan display name memakai Nama lengkap; givenName memakai Nama depan; sn memakai Nama belakang. Company diambil dari konfigurasi server. Office mengikuti lokasi. User principal name memakai sAMAccountName dan domain AD. Distinguished name dihitung dari CN dan OU setelah disetujui. Account expires mengikuti Akhir kontrak.</p>
         {% endcall %}
       </div>
 
@@ -89,8 +89,10 @@
         {% call section('Tujuan', 'briefcase') %}
           {{ select('toDepartment', 'Departemen tujuan', departments | map('string') | zip_self, 'building') }}
           {{ text('toJobTitle', 'Jabatan tujuan', 'briefcase', list='titles') }}
+          {{ select('toWorkerCategory', 'Jenis pekerja tujuan', worker_categories.items(), 'id-card') }}
+          {{ select('toLocationType', 'Lokasi tujuan', locations.items(), 'map-pin') }}
+          {{ select('toBranchName', 'Cabang tujuan', branches | zip_self, 'building', false, '— pilih bila cabang —') }}
           {{ select('toManagerEmail', 'Manager tujuan', managers | map_manager, 'user-check', span=true) }}
-          {{ select('accessProfileId', 'Profil akses baru', profiles | map_profile, 'shield', false, '— tidak berubah —', span=true) }}
         {% endcall %}
         {% call section('Alasan', 'note') %}
           {{ area('reason', 'Alasan pemindahan') }}
@@ -126,10 +128,11 @@
           {{ area('jobDescription', 'Keterangan jabatan', rows=2) }}
         {% endcall %}
         {% call section('Kepegawaian', 'id-card') %}
+          {{ select('workerCategory', 'Jenis pekerja', worker_categories.items(), 'id-card') }}
           {{ select('employmentType', 'Status kepegawaian', employment.items(), 'id-card') }}
           {{ text('expiredDate', 'Akhir kontrak', 'calendar', 'date', false, min=bounds.newContractEnd[0], max=bounds.newContractEnd[1], hint='(bila kontrak)') }}
           {{ select('locationType', 'Lokasi', locations.items(), 'map-pin') }}
-          {{ text('branchName', 'Nama cabang', 'building', required=false, hint='(bila cabang)') }}
+          {{ select('branchName', 'Nama cabang', branches | zip_self, 'building', false, '— pilih bila cabang —') }}
         {% endcall %}
         {% call section('Catatan', 'note') %}
           {{ area('description', 'Catatan HC', '(internal)', rows=2) }}

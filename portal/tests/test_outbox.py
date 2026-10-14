@@ -34,7 +34,7 @@ def queue(tmp_path):
                "payload": {"kind": "ONBOARDING", "firstName": "Nadia", "lastName": "Putri", "displayName": "Nadia Putri",
                            "email": "nadia@example.com", "userId": "nadia", "jobTitle": "Backend Engineer",
                            "department": "IT — Engineering", "employmentType": "PERMANENT", "locationType": "PUSAT",
-                           "managerName": "Sarah", "managerEmail": "sarah@example.com", "startDate": "2026-10-07"},
+                           "managerName": "Sarah", "managerEmail": "sarah@example.com"},
                "approvals": [{"stage": "MANAGER", "version": 1, "approver": {"name": "Sarah", "email": "sarah@example.com"}}],
                "effectiveAt": None, "createdAt": now_iso()}
 

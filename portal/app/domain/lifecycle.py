@@ -18,7 +18,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Mapping
 
-from app.domain.catalog import FIXED_TERM
+from app.domain.catalog import CatalogError, FIXED_TERM, placement_ou, structured_routing
 from app.domain.store import Store, audit, new_id, now_iso
 from app.domain.validation import JAKARTA
 
@@ -51,7 +51,8 @@ TYPE_LABELS = {"ONBOARDING": "Onboarding", "MOVEMENT": "Movement", "TERMINATION"
 PROFILE_FIELD_LABELS = {
     "firstName": "Nama depan", "lastName": "Nama belakang", "displayName": "Nama lengkap", "department": "Departemen",
     "jobTitle": "Jabatan", "jobDescription": "Keterangan jabatan", "employmentType": "Status kepegawaian",
-    "expiredDate": "Tanggal terakhir bekerja", "locationType": "Lokasi penempatan", "branchName": "Nama cabang",
+    "expiredDate": "Tanggal terakhir bekerja", "workerCategory": "Jenis pekerja",
+    "locationType": "Lokasi penempatan", "branchName": "Nama cabang",
     "description": "Catatan HC",
 }
 INTERNAL_PROFILE_FIELDS = {"description"}
@@ -261,6 +262,8 @@ def display_value(field: str, value) -> str:
         return {"PERMANENT": "Permanent", "CONTRACT": "Temporary"}.get(text, text)
     if field == "locationType":
         return {"CABANG": "Cabang", "PUSAT": "Kantor pusat"}.get(text, text)
+    if field == "workerCategory":
+        return {"INTERNAL": "Internal", "EXTERNAL": "External", "INTERN": "Intern"}.get(text, text)
     return str(text)
 
 
@@ -358,6 +361,24 @@ class Lifecycle:
             raise LifecycleError("INVALID", "Tidak ada perubahan pada profil. Ubah minimal satu isian sebelum mengajukan.")
         return {**payload, "changes": changes}
 
+    def _validate_placement(self, payload: dict) -> None:
+        if not structured_routing(self.env) or payload["kind"] == "TERMINATION":
+            return
+        if payload["kind"] == "ONBOARDING":
+            category, location, department, branch = (payload.get("workerCategory"), payload.get("locationType"),
+                                                       payload.get("department"), payload.get("branchName"))
+        elif payload["kind"] == "MOVEMENT":
+            category, location, department, branch = (payload.get("toWorkerCategory"), payload.get("toLocationType"),
+                                                       payload.get("toDepartment"), payload.get("toBranchName"))
+        else:
+            profile = payload["profile"]
+            category, location, department, branch = (profile.get("workerCategory"), profile.get("locationType"),
+                                                       profile.get("department"), profile.get("branchName"))
+        try:
+            placement_ou(category, location, department, branch, self.env)
+        except CatalogError as error:
+            raise LifecycleError("INVALID", str(error)) from error
+
     @staticmethod
     def _subject(payload: dict, employee: dict | None) -> dict:
         if payload["kind"] == "ONBOARDING":
@@ -401,6 +422,7 @@ class Lifecycle:
         if request.get("employeeId"):
             self._no_active_request(data, request["employeeId"], request["id"])
         request["payload"] = self._with_directory_manager(data, self._with_profile_changes(request["payload"], employee))
+        self._validate_placement(request["payload"])
         manager = resolve_manager(request["payload"], employee)
         eligible = separate_duties(request["requester"], manager, team)
         ciso_step = ({"stage": "CISO", "version": request["version"], "approver": eligible[0]} if len(eligible) == 1

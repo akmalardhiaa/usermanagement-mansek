@@ -21,6 +21,8 @@ __pycache__/
 # Images exported for the office (podman save)
 *.tar
 *.tar.gz
+/artifacts/
+/deploy/windows-native/build/
 
 .DS_Store
 

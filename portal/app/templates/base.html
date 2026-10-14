@@ -1,7 +1,7 @@
 {%- from "_ui.html" import icon -%}
 {%- macro brand_mark(large=False) -%}
 <span class="brand-mark{{ ' large' if large }}">
-  {%- if brand_logo %}<img class="brand-lockup" src="{{ brand_logo }}" alt="{{ brand }}">
+  {%- if brand_logo %}<img class="brand-lockup" src="{{ brand_logo }}" alt="{{ brand }}" width="48" height="48">
   {%- elif brand and brand != 'HC User Management' %}<span class="brand-word">{{ brand }}</span>
   {%- else %}<span class="brand-tile" aria-hidden="true">HC</span>{% endif %}
   <span class="brand-divider" aria-hidden="true"></span>
@@ -22,7 +22,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ brand }}{% endblock %} · HC User Management</title>
   <link rel="icon" href="/static/favicon.ico">
-  <link rel="stylesheet" href="/static/portal.css">
+  <link rel="stylesheet" href="/static/portal.css?v=20261014-3">
   {% block head %}{% endblock %}
 </head>
 <body>

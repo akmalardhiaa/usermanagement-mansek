@@ -11,16 +11,15 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Mapping
 
-from app.domain.catalog import EMPLOYMENT_TYPES, FIXED_TERM, PROFILE_IDS, TERMINATION_REASONS
+from app.domain.catalog import BRANCHES, EMPLOYMENT_TYPES, FIXED_TERM, TERMINATION_REASONS, WORKER_CATEGORIES
 
 JAKARTA = timezone(timedelta(hours=7))  # WIB has no daylight saving
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
-USER_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{1,19}$")
+USER_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{1,19}$")
 
 # How far back and forward each date may plausibly be, in days.
 BOUNDS = {
     "effectiveAt": (30, 365),
-    "startDate": (365, 365),
     "lastWorkingDate": (365, 365),
     "newContractEnd": (30, 3650),
     "contractEnd": (3650, 3650),
@@ -110,7 +109,10 @@ class _Form:
         return parsed.isoformat()
 
     def choice(self, field: str, label: str, allowed, required: bool = True) -> str | None:
-        value = self.text(field).upper() if field != "accessProfileId" else self.text(field)
+        raw = self.text(field)
+        value = raw.upper()
+        if field.endswith("branchName"):
+            value = next((name for name in allowed if name.casefold() == raw.casefold()), raw)
         if not value:
             if required:
                 self.errors[field] = f"{label} wajib dipilih."
@@ -121,19 +123,28 @@ class _Form:
         return value
 
 
-def _employment(form: _Form, prefix: str = "") -> tuple[str | None, str | None, str | None, str | None]:
+def _placement(form: _Form, prefix: str = "", structured: bool = False) -> tuple[str | None, str | None, str | None]:
+    def field(name: str) -> str:
+        return prefix + name[0].upper() + name[1:] if prefix else name
+    category = form.choice(field("workerCategory"), "Jenis pekerja", WORKER_CATEGORIES, required=structured)
+    location = form.choice(field("locationType"), "Lokasi", {"PUSAT", "CABANG"},
+                           required=structured or not prefix)
+    branch = form.choice(field("branchName"), "Nama cabang", BRANCHES) if location == "CABANG" else None
+    return category, location, branch
+
+
+def _employment(form: _Form, prefix: str = "") -> tuple[str | None, str | None]:
     employment = form.choice(f"{prefix}employmentType", "Status kepegawaian", EMPLOYMENT_TYPES)
     expired = (
         form.date(f"{prefix}expiredDate", "Tanggal terakhir bekerja", "newContractEnd", True)
         if employment in FIXED_TERM
         else None
     )
-    location = form.choice(f"{prefix}locationType", "Lokasi", {"PUSAT", "CABANG"})
-    branch = form.required(f"{prefix}branchName", "Nama cabang", 2, 120) if location == "CABANG" else None
-    return employment, expired, location, branch
+    return employment, expired
 
 
-def parse_request(kind: str, data: Mapping[str, str], now: datetime | None = None) -> Parsed:
+def parse_request(kind: str, data: Mapping[str, str], now: datetime | None = None,
+                  structured: bool = False) -> Parsed:
     form = _Form(data, now)
     kind = kind.upper()
     if kind not in TYPES:
@@ -147,27 +158,26 @@ def parse_request(kind: str, data: Mapping[str, str], now: datetime | None = Non
         last = form.required("lastName", "Nama belakang", 1, 80)
         display = form.required("displayName", "Nama lengkap", 2, 160)
         address = form.email("email", "Email")
-        user_id = form.text("userId").lower()
+        user_id = form.text("userId")
         if not user_id:
             form.errors["userId"] = "User ID wajib diisi."
         elif not USER_ID.match(user_id):
-            form.errors["userId"] = ("User ID hanya boleh huruf kecil, angka, titik, garis bawah, dan tanda hubung, "
+            form.errors["userId"] = ("User ID hanya boleh huruf, angka, titik, garis bawah, dan tanda hubung, "
                                      "2-20 karakter, diawali huruf atau angka.")
         title = form.required("jobTitle", "Jabatan", 2, 120)
         department = form.required("department", "Departemen", 2, 120)
         manager_name = form.required("managerName", "Nama manager", 2, 120)
         manager_email = form.email("managerEmail", "Manager")
-        start = form.date("startDate", "Tanggal mulai", "startDate", False) or jakarta_today(now).isoformat()
-        profile = form.choice("accessProfileId", "Profil akses", PROFILE_IDS, required=False)
         description = form.optional("jobDescription", "Keterangan jabatan", 2000)
-        employment, expired, location, branch = _employment(form)
+        employment, expired = _employment(form)
+        category, location, branch = _placement(form, structured=structured)
         if not form.errors:
             payload = {
                 "kind": "ONBOARDING", "firstName": first, "lastName": last, "displayName": display,
                 "email": address, "userId": user_id, "jobTitle": title, "jobDescription": description,
                 "department": department, "employmentType": employment, "expiredDate": expired,
-                "locationType": location, "branchName": branch, "managerName": manager_name,
-                "managerEmail": manager_email, "startDate": start, "accessProfileId": profile,
+                "workerCategory": category, "locationType": location, "branchName": branch, "managerName": manager_name,
+                "managerEmail": manager_email,
             }
 
     elif kind == "MOVEMENT":
@@ -176,14 +186,15 @@ def parse_request(kind: str, data: Mapping[str, str], now: datetime | None = Non
         title = form.required("toJobTitle", "Jabatan tujuan", 2, 120)
         manager_name = form.required("toManagerName", "Nama manager tujuan", 2, 120)
         manager_email = form.email("toManagerEmail", "Manager tujuan")
-        profile = form.choice("accessProfileId", "Profil akses", PROFILE_IDS, required=False)
         reason = form.optional("reason", "Alasan pemindahan", 2000)
         description = form.optional("toJobDescription", "Keterangan jabatan", 2000)
+        category, location, branch = _placement(form, "to", structured=structured)
         if not form.errors:
             payload = {
                 "kind": "MOVEMENT", "employeeId": employee_id, "toDepartment": department, "toJobTitle": title,
                 "toJobDescription": description, "toManagerName": manager_name, "toManagerEmail": manager_email,
-                "accessProfileId": profile, "reason": reason,
+                "reason": reason, "toWorkerCategory": category,
+                "toLocationType": location, "toBranchName": branch,
             }
 
     elif kind == "TERMINATION":
@@ -209,14 +220,16 @@ def parse_request(kind: str, data: Mapping[str, str], now: datetime | None = Non
         department = form.required("department", "Departemen", 2, 120)
         description = form.optional("jobDescription", "Keterangan jabatan", 2000)
         hc_note = form.optional("description", "Catatan HC", 2000)
-        employment, expired, location, branch = _employment(form)
+        employment, expired = _employment(form)
+        category, location, branch = _placement(form, structured=structured)
         if not form.errors:
             payload = {
                 "kind": "PROFILE_UPDATE", "employeeId": employee_id,
                 "profile": {
                     "firstName": first, "lastName": last, "displayName": display, "jobTitle": title,
                     "jobDescription": description, "department": department, "employmentType": employment,
-                    "expiredDate": expired, "locationType": location, "branchName": branch, "description": hc_note,
+                    "expiredDate": expired, "workerCategory": category,
+                    "locationType": location, "branchName": branch, "description": hc_note,
                 },
                 "changes": [],  # computed by the server against the record, never taken from the form
             }

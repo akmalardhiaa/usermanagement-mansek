@@ -6,6 +6,7 @@ import uuid
 
 from app.ad_client import AdError, LoginResult
 from app.domain.catalog import same_dn
+from app.domain.plan import expiry_filetime
 
 from conftest import USERS
 
@@ -108,6 +109,10 @@ class FakeDirectory:
         manager = spec.get("manager") or ""
         account = self.add(spec["sAMAccountName"], spec["displayName"], spec["mail"], spec["department"], spec["ou"],
                            enabled=False, manager=manager, title=spec.get("title") or "")
+        account.update({key: spec.get(key) for key in ("company", "office", "description", "userPrincipalName")})
+        account["cn"] = spec["displayName"]
+        account["accountExpires"] = expiry_filetime(spec.get("expiredDate") or "")
+        account["distinguishedName"] = f"CN={spec['displayName']},{spec['ou']}"
         return dict(account)
 
     def set_attributes(self, guid: str, patch: dict) -> None:
@@ -117,7 +122,10 @@ class FakeDirectory:
         for key, value in patch.items():
             if value is None:
                 continue
-            account[key] = value
+            account["accountExpires" if key == "expiredDate" else key] = expiry_filetime(value) if key == "expiredDate" else value
+        if patch.get("displayName"):
+            account["cn"] = patch["displayName"]
+            account["distinguishedName"] = f"CN={patch['displayName']},{account['ou']}"
 
     def change_groups(self, guid: str, add: list[str], remove: list[str]) -> None:
         self._guard("groups")
@@ -132,7 +140,9 @@ class FakeDirectory:
         if any(same_dn(ou, missing) for missing in self.missing_ous):
             raise AdError("NOT_FOUND", f"OU {ou} tidak ada.")
         self.writes.append(("move", guid, ou))
-        self._get(guid)["ou"] = ou
+        account = self._get(guid)
+        account["ou"] = ou
+        account["distinguishedName"] = f"CN={account['displayName']},{ou}"
 
     def set_enabled(self, guid: str, enabled: bool) -> None:
         self._guard("enabled")

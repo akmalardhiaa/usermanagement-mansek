@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
-from app.domain.catalog import DEPARTMENT_GROUPS, DEPARTMENTS, EMPLOYMENT_TYPES, LOCATIONS
+from app.domain.catalog import DEPARTMENT_GROUPS, DEPARTMENTS, EMPLOYMENT_TYPES, LOCATIONS, WORKER_CATEGORIES
 from app.domain.lifecycle import is_active
 from app.domain.store import now_iso, record_activity
 from app.web.context import Context
@@ -153,7 +153,7 @@ def register(app: FastAPI, ctx: Context) -> None:
                          key=lambda r: r["createdAt"], reverse=True)
         active = next((r for r in history if is_active(r["status"])), None)
         return ctx.page(request, "employee.html", session=session, employee=employee, history=history, active=active,
-                        employment=EMPLOYMENT_TYPES, locations=LOCATIONS)
+                        employment=EMPLOYMENT_TYPES, locations=LOCATIONS, worker_categories=WORKER_CATEGORIES)
 
     @app.get("/direktori/export.xlsx")
     def export(request: Request):
@@ -166,7 +166,8 @@ def register(app: FastAPI, ctx: Context) -> None:
         book = Workbook()
         sheet = book.active
         sheet.title = "Direktori"
-        headers = ["Nama", "Email", "Jabatan", "Departemen", "Status", "Status kepegawaian", "Lokasi", "Manager", "Email manager"]
+        headers = ["Nama", "Email", "Jabatan", "Departemen", "Status", "Jenis pekerja",
+                   "Status kepegawaian", "Lokasi", "Cabang", "Manager", "Email manager"]
         sheet.append(headers)
         for cell in sheet[1]:
             cell.font = Font(bold=True, color="FFFFFF")
@@ -174,13 +175,15 @@ def register(app: FastAPI, ctx: Context) -> None:
         for e in employees:
             sheet.append([e["displayName"], e["email"], e.get("jobTitle", ""), e.get("department", ""),
                           "Aktif" if e["status"] == "ACTIVE" else "Nonaktif",
+                          WORKER_CATEGORIES.get(e.get("workerCategory") or "", ""),
                           EMPLOYMENT_TYPES.get(e.get("employmentType") or "", ""), LOCATIONS.get(e.get("locationType") or "", ""),
+                          e.get("branchName", ""),
                           e.get("managerName", ""), e.get("managerEmail", "")])
             # Text stays text: a name from AD that starts with "=" must not become a formula.
             for cell in sheet[sheet.max_row]:
                 if isinstance(cell.value, str):
                     cell.data_type = "s"
-        for column, width in zip("ABCDEFGHI", (28, 34, 26, 22, 10, 20, 14, 24, 32)):
+        for column, width in zip("ABCDEFGHIJK", (28, 34, 26, 22, 10, 18, 20, 14, 24, 24, 32)):
             sheet.column_dimensions[column].width = width
         buffer = io.BytesIO()
         book.save(buffer)

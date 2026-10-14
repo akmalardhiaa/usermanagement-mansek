@@ -10,7 +10,7 @@ ONBOARDING = {
     "firstName": "Nadia", "lastName": "Putri", "displayName": "Nadia Putri", "email": "Nadia.Putri@Example.com",
     "userId": "nadia.putri", "jobTitle": "Backend Engineer", "department": "IT — Engineering",
     "managerName": "Sarah Wijaya", "managerEmail": "sarah@example.com", "employmentType": "permanent",
-    "locationType": "PUSAT",
+    "workerCategory": "INTERNAL", "locationType": "PUSAT",
 }
 
 
@@ -19,9 +19,14 @@ def test_a_complete_onboarding_is_accepted_and_normalised():
     assert parsed.ok, parsed.errors
     assert parsed.payload["email"] == "nadia.putri@example.com"
     assert parsed.payload["employmentType"] == "PERMANENT"
-    assert parsed.payload["startDate"] == "2026-10-07"
+    assert "startDate" not in parsed.payload
     assert parsed.effective_at is None
-    assert "accessProfileId" not in parsed.payload  # empty values are left out
+    assert "accessProfileId" not in parsed.payload
+
+
+def test_access_profile_posted_outside_form_is_ignored():
+    parsed = parse_request("ONBOARDING", {**ONBOARDING, "accessProfileId": "security"}, NOW)
+    assert parsed.ok and "accessProfileId" not in parsed.payload
 
 
 def test_a_contract_needs_its_end_date_and_a_branch_its_name():
@@ -29,16 +34,25 @@ def test_a_contract_needs_its_end_date_and_a_branch_its_name():
     assert set(parsed.errors) == {"expiredDate", "branchName"}
 
 
+def test_unknown_branch_and_missing_worker_category_are_rejected():
+    invalid = parse_request("ONBOARDING", {**ONBOARDING, "workerCategory": "", "locationType": "CABANG",
+                                             "branchName": "Bogor"}, NOW, structured=True)
+    assert set(invalid.errors) == {"workerCategory", "branchName"}
+    valid = parse_request("ONBOARDING", {**ONBOARDING, "workerCategory": "EXTERNAL", "locationType": "CABANG",
+                                           "branchName": "batam"}, NOW)
+    assert valid.ok and valid.payload["branchName"] == "Batam"
+
+
 def test_bad_values_are_named():
-    parsed = parse_request("ONBOARDING", {**ONBOARDING, "userId": "-x", "email": "a@b", "accessProfileId": "root"}, NOW)
-    assert set(parsed.errors) == {"userId", "email", "accessProfileId"}
+    parsed = parse_request("ONBOARDING", {**ONBOARDING, "userId": "-x", "email": "a@b"}, NOW)
+    assert set(parsed.errors) == {"userId", "email"}
 
 
 def test_dates_stay_within_reason():
-    typo = parse_request("ONBOARDING", {**ONBOARDING, "startDate": "20266-01-01"}, NOW)
-    assert "startDate" in typo.errors
-    late = parse_request("ONBOARDING", {**ONBOARDING, "startDate": "2030-01-01"}, NOW)
-    assert "terlalu jauh ke depan" in late.errors["startDate"]
+    typo = parse_request("ONBOARDING", {**ONBOARDING, "employmentType": "CONTRACT", "expiredDate": "20266-01-01"}, NOW)
+    assert "expiredDate" in typo.errors
+    late = parse_request("ONBOARDING", {**ONBOARDING, "employmentType": "CONTRACT", "expiredDate": "2040-01-01"}, NOW)
+    assert "terlalu jauh ke depan" in late.errors["expiredDate"]
 
 
 def test_termination_takes_effect_the_morning_after_the_last_day():

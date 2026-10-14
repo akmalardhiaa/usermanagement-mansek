@@ -7,6 +7,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 
 import com.hcportal.adservice.ldap.LdapConnector;
 import com.unboundid.asn1.ASN1OctetString;
@@ -41,8 +44,9 @@ import com.unboundid.ldap.sdk.controls.SimplePagedResultsControl;
 public final class DirectoryService {
 
     private static final String[] ATTRIBUTES = {
-        "objectGUID", "sAMAccountName", "userPrincipalName", "displayName", "givenName", "sn",
-        "mail", "department", "title", "manager", "userAccountControl", "memberOf"
+        "objectGUID", "sAMAccountName", "userPrincipalName", "displayName", "cn", "givenName", "sn",
+        "mail", "department", "title", "manager", "company", "physicalDeliveryOfficeName",
+        "description", "accountExpires", "userAccountControl", "memberOf"
     };
     private static final int NORMAL_ACCOUNT = 0x200;
     private static final int ACCOUNTDISABLE = 0x2;
@@ -50,10 +54,13 @@ public final class DirectoryService {
     /** What the portal asks for when it creates an account. */
     public record CreateSpec(String sAMAccountName, String userPrincipalName, String displayName,
                              String givenName, String sn, String mail, String department,
-                             String title, String manager, String ou) {}
+                             String title, String manager, String ou, String company, String office,
+                             String description, String expiredDate) {}
 
     /** Null leaves an attribute alone; blank removes it. */
-    public record AttributePatch(String displayName, String department, String title, String manager, String mail) {}
+    public record AttributePatch(String displayName, String givenName, String sn,
+                                 String department, String title, String manager, String mail,
+                                 String company, String office, String description, String expiredDate) {}
 
     /** Whether a signed-in person still should be: for the portal's session recheck. */
     public record Standing(boolean found, boolean enabled, List<String> memberOf) {}
@@ -176,6 +183,10 @@ public final class DirectoryService {
             optional(entry, "department", spec.department());
             optional(entry, "title", spec.title());
             optional(entry, "manager", managerDn);
+            optional(entry, "company", spec.company());
+            optional(entry, "physicalDeliveryOfficeName", spec.office());
+            optional(entry, "description", spec.description());
+            if (!blank(spec.expiredDate())) entry.addAttribute("accountExpires", expiryFiletime(spec.expiredDate()));
 
             writing.run();
             connection.add(entry);
@@ -193,9 +204,18 @@ public final class DirectoryService {
             assertManaged(parentOf(entry), "Objek yang diubah");
             List<Modification> changes = new ArrayList<>();
             set(changes, entry, "displayName", patch.displayName());
+            set(changes, entry, "givenName", patch.givenName());
+            set(changes, entry, "sn", patch.sn());
             set(changes, entry, "department", patch.department());
             set(changes, entry, "title", patch.title());
             set(changes, entry, "mail", patch.mail());
+            set(changes, entry, "company", patch.company());
+            set(changes, entry, "physicalDeliveryOfficeName", patch.office());
+            set(changes, entry, "description", patch.description());
+            if (patch.expiredDate() != null) {
+                changes.add(new Modification(ModificationType.REPLACE, "accountExpires",
+                        patch.expiredDate().isBlank() ? "0" : expiryFiletime(patch.expiredDate())));
+            }
             if (patch.manager() != null) {
                 if (patch.manager().isBlank()) {
                     if (entry.hasAttribute("manager")) changes.add(new Modification(ModificationType.DELETE, "manager"));
@@ -203,9 +223,16 @@ public final class DirectoryService {
                     changes.add(new Modification(ModificationType.REPLACE, "manager", requireManagerDn(connection, patch.manager())));
                 }
             }
-            if (changes.isEmpty()) return null;
-            writing.run();
-            connection.modify(entry.getDN(), changes);
+            boolean rename = patch.displayName() != null && !patch.displayName().isBlank()
+                    && !patch.displayName().equalsIgnoreCase(text(entry, "cn"));
+            if (!changes.isEmpty()) {
+                writing.run();
+                connection.modify(entry.getDN(), changes);
+            }
+            if (rename) {
+                writing.run();
+                connection.modifyDN(entry.getDN(), new RDN("CN", patch.displayName()).toString(), true);
+            }
             return null;
         });
     }
@@ -323,6 +350,16 @@ public final class DirectoryService {
         if (!blank(value)) entry.addAttribute(attribute, value);
     }
 
+    private static String expiryFiletime(String date) {
+        // AD expires at 00:00 WIB after the employee's last working date.
+        try {
+            long seconds = LocalDate.parse(date).plusDays(1).atStartOfDay(ZoneId.of("Asia/Jakarta")).toEpochSecond();
+            return String.valueOf(Math.multiplyExact(Math.addExact(seconds, 11644473600L), 10000000L));
+        } catch (DateTimeParseException | ArithmeticException error) {
+            throw new AdException(AdException.Kind.CONFLICT, "Tanggal accountExpires tidak valid: gunakan YYYY-MM-DD.");
+        }
+    }
+
     private static boolean blank(String value) {
         return value == null || value.isBlank();
     }
@@ -412,12 +449,18 @@ public final class DirectoryService {
                 entry.getAttributeValue("sAMAccountName"),
                 text(entry, "userPrincipalName"),
                 text(entry, "displayName"),
+                text(entry, "cn"),
                 text(entry, "givenName"),
                 text(entry, "sn"),
                 text(entry, "mail"),
                 text(entry, "department"),
                 text(entry, "title"),
                 manager,
+                text(entry, "company"),
+                text(entry, "physicalDeliveryOfficeName"),
+                text(entry, "description"),
+                text(entry, "accountExpires"),
+                entry.getDN(),
                 isEnabled(entry),
                 parentOf(entry),
                 catalogue);

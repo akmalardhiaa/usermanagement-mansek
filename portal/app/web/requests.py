@@ -7,8 +7,8 @@ from urllib.parse import quote
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.domain.catalog import (ACCESS_PROFILES, DEPARTMENTS, EMPLOYMENT_TYPES, JOB_TITLES, LOCATIONS,
-                                TERMINATION_REASONS)
+from app.domain.catalog import (BRANCHES, DEPARTMENTS, EMPLOYMENT_TYPES, JOB_TITLES, LOCATIONS,
+                                TERMINATION_REASONS, WORKER_CATEGORIES, structured_routing)
 from app.domain.lifecycle import LifecycleError, TYPE_LABELS, is_active
 from app.domain.present import payload_rows
 from app.domain.validation import date_bounds, parse_request
@@ -44,9 +44,10 @@ def register(app: FastAPI, ctx: Context) -> None:
         return {
             "kind": kind, "slug": SLUG[kind], "values": values, "errors": errors, "type_label": TYPE_LABELS[kind],
             "employees": active_people, "managers": active_people, "departments": DEPARTMENTS, "job_titles": JOB_TITLES,
-            "profiles": ACCESS_PROFILES, "employment": EMPLOYMENT_TYPES, "locations": LOCATIONS,
+            "employment": EMPLOYMENT_TYPES, "locations": LOCATIONS,
+            "worker_categories": WORKER_CATEGORIES, "branches": BRANCHES,
             "reasons": TERMINATION_REASONS, "bounds": {name: date_bounds(name) for name in
-                                                       ("effectiveAt", "startDate", "lastWorkingDate", "newContractEnd")},
+                                                       ("effectiveAt", "lastWorkingDate", "newContractEnd")},
         }
 
     def with_manager_names(values: dict) -> dict:
@@ -92,7 +93,10 @@ def register(app: FastAPI, ctx: Context) -> None:
                 values.update({k: v for k, v in employee.items() if isinstance(v, str)})
             if employee and kind == "MOVEMENT":
                 values.update(toDepartment=employee.get("department", ""), toJobTitle=employee.get("jobTitle", ""),
-                              toManagerEmail=employee.get("managerEmail", ""))
+                              toManagerEmail=employee.get("managerEmail", ""),
+                              toWorkerCategory=employee.get("workerCategory", ""),
+                              toLocationType=employee.get("locationType", ""),
+                              toBranchName=employee.get("branchName", ""))
         return ctx.page(request, "request_form.html", session=session, action="/pengajuan/baru", **form_context(kind, values, {}))
 
     @app.post("/pengajuan/baru", response_class=HTMLResponse)
@@ -104,7 +108,7 @@ def register(app: FastAPI, ctx: Context) -> None:
         kind = KINDS.get(form.get("jenis", ""), "")
         if not kind:
             return RedirectResponse("/pengajuan/baru", status_code=303)
-        parsed = parse_request(kind, form)
+        parsed = parse_request(kind, form, structured=structured_routing(ctx.env))
         if not parsed.ok:
             return ctx.page(request, "request_form.html", session=session, status=422, action="/pengajuan/baru",
                             **form_context(kind, form, parsed.errors))
@@ -181,7 +185,7 @@ def register(app: FastAPI, ctx: Context) -> None:
         except LifecycleError:
             return ctx.page(request, "not_found.html", session=session, status=404)
         form = with_manager_names({k: str(v) for k, v in (await request.form()).items()})
-        parsed = parse_request(item["type"], form)
+        parsed = parse_request(item["type"], form, structured=structured_routing(ctx.env))
         if not parsed.ok:
             return ctx.page(request, "request_form.html", session=session, status=422, revising=item,
                             action=f"/pengajuan/{request_id}/revisi", **form_context(item["type"], form, parsed.errors))

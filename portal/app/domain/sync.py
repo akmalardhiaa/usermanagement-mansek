@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Mapping
 
 from app.ad_client import AdClient
+from app.domain.catalog import placement_from_ou
 from app.domain.store import Store, new_id, record_activity
 
 
@@ -25,7 +26,7 @@ def sync_sources(env: Mapping[str, str]) -> list[str]:
     return [base] if base else []
 
 
-def _fields(account: dict, manager: dict | None) -> dict:
+def _fields(account: dict, manager: dict | None, env: Mapping[str, str]) -> dict:
     display = (account.get("displayName") or "").strip() or " ".join(
         p for p in (account.get("givenName"), account.get("sn")) if p).strip() or account["sAMAccountName"]
     first, _, rest = display.partition(" ")
@@ -33,12 +34,20 @@ def _fields(account: dict, manager: dict | None) -> dict:
         "firstName": (account.get("givenName") or "").strip() or first,
         "lastName": (account.get("sn") or "").strip() or rest,
         "displayName": display,
+        "cn": (account.get("cn") or "").strip(),
         "email": (account.get("mail") or "").strip().lower(),
         "jobTitle": (account.get("title") or "").strip(),
         "department": (account.get("department") or "").strip(),
         "managerName": ((manager or {}).get("displayName") or "").strip(),
         "managerEmail": ((manager or {}).get("mail") or "").strip().lower(),
+        "sAMAccountName": (account.get("sAMAccountName") or "").strip(),
+        "userPrincipalName": (account.get("userPrincipalName") or "").strip(),
+        "distinguishedName": (account.get("distinguishedName") or "").strip(),
+        "company": (account.get("company") or "").strip(),
+        "office": (account.get("office") or "").strip(),
+        "jobDescription": (account.get("description") or "").strip(),
         "status": "ACTIVE" if account["enabled"] else "DISABLED",
+        **placement_from_ou(account.get("ou"), env),
     }
 
 
@@ -75,7 +84,7 @@ def sync_employees(store: Store, ad: AdClient, env: Mapping[str, str] | None = N
             if not email:
                 report["skipped"] += 1
                 continue
-            fields = _fields(account, manager_of.get(guid))
+            fields = _fields(account, manager_of.get(guid), env)
             employee = next((e for e in data["employees"] if (e.get("objectGUID") or "").lower() == guid), None)
             if employee is None:
                 same_address = [e for e in data["employees"] if e["email"].strip().lower() == email]

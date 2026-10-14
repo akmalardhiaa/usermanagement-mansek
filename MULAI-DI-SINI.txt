@@ -1,50 +1,19 @@
-HC USER MANAGEMENT - CARA MEMASANG DI PC KANTOR
-===============================================
+HC PORTAL - SERVER LINUX KANTOR DENGAN PODMAN
 
-Semua lewat File Explorer: klik dua kali berkas .bat. Tidak perlu VS Code,
-tidak perlu mengetik perintah.
+Target terbaru: Linux server. Baca deploy\linux\README.md untuk permintaan IT,
+setup Podman, AD/OU, HTTPS, backup dan uji penerimaan.
+Launcher .bat Windows lama sudah dihapus.
 
-SEBELUM MULAI, minta ke IT:
-  - alamat domain controller (LDAPS port 636) + sertifikat CA perusahaan
-  - akun layanan AD + kata sandinya
-  - DN OU divisi, OU karantina, group HC, group admin, group tim CISO
-  - server email (SMTP), atau Microsoft Graph bila SMTP diblokir
-  - nama https untuk portal (untuk link di email)
-  - hak administrator di PC ini (untuk langkah 1)
+Ringkasnya:
+1. Minta tim server menyiapkan VM Linux, Podman rootless, HTTPS dan jaringan.
+2. Minta tim AD menyiapkan LDAPS, CA publik, akun layanan, OU dan group uji.
+3. Di laptop Windows, buat paket dengan:
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\windows\package-office.ps1 -Destination D:\kirim-ke-kantor
+   Salin ZIP ke Linux, cek SHA-256, lalu load.
+4. Isi .env.production.local dan certs/corp-root-ca.pem di Linux.
+5. Jalankan Podman Compose, uji Status sistem, approval dan akun dummy.
+6. Uji startup setelah reboot, backup/restore, baru minta izin OU produksi.
 
-LANGKAH
--------
-0. Ekstrak hc-portal-kantor.zip, lalu pindahkan folder hc-portal ke C:\
-   sehingga menjadi C:\hc-portal
-
-1. Klik KANAN  KANTOR-1-pasang-podman.bat  -> "Run as administrator"
-   (sekali saja; memasang WSL2 + Podman). Restart PC bila diminta.
-
-2. Klik dua kali  KANTOR-2-siapkan.bat
-   - memuat portal dari hc-images.tar.gz
-   - membuat berkas pengaturan .env.production.local dan membukanya di Notepad
-   Isi semua tulisan <...> bersama IT, lalu Simpan (Ctrl+S).
-   Pengaturan yang tidak dipakai kantor (mis. AD_GROUP_AUDITOR): kosongkan.
-   Simpan juga sertifikat CA dari IT sebagai  certs\corp-root-ca.pem
-
-3. Klik dua kali  KANTOR-3-jalankan.bat
-   Browser terbuka di http://localhost:3000 -> login dengan akun AD ->
-   pindai kode QR dengan aplikasi authenticator di HP -> buka menu
-   Status sistem. Semua harus OK, kecuali "Mode tulis" dan "HTTPS" dulu.
-
-BERKAS LAIN
------------
-  KANTOR-3-jalankan.bat   menyalakan lagi (juga setelah mengubah pengaturan)
-  KANTOR-hentikan.bat     mematikan portal (data tetap aman)
-  KANTOR-lihat-log.bat    melihat penyebab masalah; isinya boleh dikirim
-                          untuk minta bantuan (tidak berisi kata sandi)
-
-Langkah lanjutan (HTTPS lewat IIS, menyalakan penulisan ke AD, menyala
-otomatis setelah restart, backup): PANDUAN-PC-KANTOR.md, bagian 8-11.
-Berkas .md bisa dibuka dengan Notepad.
-
-PENTING
--------
-  - Jangan kirim .env.production.local lewat chat: isinya kata sandi.
-  - Simpan salinannya di tempat aman. Tanpa kunci di dalamnya, data 2FA
-    tidak bisa dibuka lagi.
+Panduan operasional: deploy\linux\README.md
+Panduan AD dan OU: PANDUAN-AD-OU.md
+Password/kunci dalam .env tidak boleh dikirim lewat chat atau di-commit.

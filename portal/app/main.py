@@ -152,7 +152,13 @@ def create_app(settings: Settings | None = None, ad: AdClient | None = None, env
             log.info("[portal] email tiap %ss (dan saat itu juga), worker tiap %ss, sinkron AD tiap %s menit, "
                      "cek sesi tiap %s menit.", outbox_seconds, worker_seconds, sync_minutes, recheck_minutes)
 
-        app.add_event_handler("startup", start)
+        # FastAPI 0.115+ removed the application-level event helper; the
+        # router hook remains supported across the versions used by the
+        # Windows package and the local development environment.
+        if hasattr(app, "add_event_handler"):
+            app.add_event_handler("startup", start)
+        else:
+            app.router.on_startup.append(start)
 
     return app
 

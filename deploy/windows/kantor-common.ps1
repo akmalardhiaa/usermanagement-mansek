@@ -1,4 +1,4 @@
-# Shared by the KANTOR-*.bat files: find Podman and Compose even in a window
+# Legacy Windows helper: find Podman and Compose from PowerShell.
 # opened before they were installed, and say plainly what is missing.
 
 . (Join-Path $PSScriptRoot "podman-common.ps1")
@@ -13,7 +13,7 @@ function Use-PodmanPath {
         }
     }
     if (-not (Get-Command podman -ErrorAction SilentlyContinue)) {
-        throw "Podman belum terpasang. Klik kanan KANTOR-1-pasang-podman.bat lalu pilih 'Run as administrator'."
+        throw 'Podman belum terpasang. Minta IT memasang Podman atau jalankan deploy/windows/kantor-prasyarat.ps1.'
     }
 }
 

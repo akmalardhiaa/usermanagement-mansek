@@ -1,72 +1,50 @@
-/* HC portal — Mandiri Sekuritas' navy and gold, sampled from the logo: navy
-   #173d6e (89% of the mark's pixels) and gold #fdb713 (the wave). Every navy
-   below is one ramp on the logo's own hue, so no surface reads as a different
-   navy from the mark sitting on it.
-
-   Dark is the default; light when the computer asks for it, or when the person
-   picks it with the sun/moon button (a cookie, read on the server — no script).
-   Nothing loops: one short entrance per page, hovers, and that is all. */
+/* Mandiri Sekuritas navy and gold. Light is the default; dark remains available
+   through the theme button. */
 
 :root {
-  --canvas: #071321;
-  --surface: #0c1e36;
-  --elevated: #112a4b;
-  --hairline: #173d6e;
-  --hairline-strong: #25528d;
-  --ink: #ebf1f9;
-  --ink-muted: #a2b5cd;
-  --ink-faint: #7389a5;
+  --canvas: #f4f7fb;
+  --surface: #ffffff;
+  --elevated: #eaf1f8;
+  --hairline: #d9e4ef;
+  --hairline-strong: #bacce0;
+  --ink: #18334f;
+  --ink-muted: #526b83;
+  --ink-faint: #6c8195;
   --accent: #fdb713;
-  --accent-soft: #ffce5c;
-  --accent-ink: #071321;
-  --accent-text: #fdb713;
-  --ok: #34d399;
-  --warn: #fb923c;
-  --info: #56b8f5;
-  --danger: #fb7185;
-  --shadow-header: 0 8px 30px -12px rgb(0 0 0 / 0.7);
-  --shadow-panel: 0 24px 60px -20px rgb(0 0 0 / 0.8);
-  --shadow-card: 0 8px 30px rgb(0 0 0 / 0.12);
-  --wash-cool: color-mix(in oklab, #2e6ab8 22%, transparent);
-  --wash-warm: color-mix(in oklab, #fdb713 10%, transparent);
-  --shimmer: linear-gradient(110deg, #fdb713 0%, #ffce5c 25%, #fff5cc 50%, #ffce5c 75%, #fdb713 100%);
-  --lockup-plaque: transparent;
-  --show-dark: inline-grid;
-  --show-light: none;
+  --accent-soft: #9a6500;
+  --accent-ink: #1b2d40;
+  --accent-text: #8a5b00;
+  --ok: #047857;
+  --warn: #a74b13;
+  --info: #075f9a;
+  --danger: #b42342;
+  --shadow-header: 0 8px 24px -16px rgb(24 51 79 / .20);
+  --shadow-panel: 0 24px 60px -26px rgb(24 51 79 / .22);
+  --shadow-card: 0 8px 30px rgb(24 51 79 / .07);
+  --wash-cool: color-mix(in oklab, #8ebce8 15%, transparent);
+  --wash-warm: color-mix(in oklab, #fdb713 8%, transparent);
+  --shimmer: linear-gradient(110deg, #9a6500, #c48900);
+  --lockup-plaque: #173d6e;
+  --show-dark: none;
+  --show-light: inline-grid;
   --radius: 1rem;
   --radius-sm: 0.5rem;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
-/* The light palette: the same navy and gold re-ramped against warm paper, not
-   the dark values inverted. The semantic colours darken sharply so a badge
-   tinting its own background stays readable. */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --canvas: #f6f3eb; --surface: #fdfbf7; --elevated: #eee8dc; --hairline: #e3dccb; --hairline-strong: #cabaa3;
-    --ink: #142030; --ink-muted: #4a5c73; --ink-faint: #60738c;
-    --accent-soft: #8a5c00; --accent-text: #9a6700; --ok: #047857; --warn: #b23c0a; --info: #0369a1; --danger: #be123c;
-    --shadow-header: 0 8px 24px -14px rgb(20 32 48 / 0.12); --shadow-panel: 0 20px 50px -20px rgb(20 32 48 / 0.15);
-    --shadow-card: 0 8px 30px rgb(20 32 48 / 0.06);
-    --wash-cool: color-mix(in oklab, #173d6e 5%, transparent); --wash-warm: color-mix(in oklab, #fdb713 16%, transparent);
-    --shimmer: linear-gradient(110deg, #d99b00 0%, #8a5c00 25%, #fdb713 50%, #8a5c00 75%, #d99b00 100%);
-    --lockup-plaque: #173d6e; --show-dark: none; --show-light: inline-grid;
-    color-scheme: light;
-  }
-}
-:root[data-theme="light"] {
-  --canvas: #f6f3eb; --surface: #fdfbf7; --elevated: #eee8dc; --hairline: #e3dccb; --hairline-strong: #cabaa3;
-  --ink: #142030; --ink-muted: #4a5c73; --ink-faint: #60738c;
-  --accent-soft: #8a5c00; --accent-text: #9a6700; --ok: #047857; --warn: #b23c0a; --info: #0369a1; --danger: #be123c;
-  --shadow-header: 0 8px 24px -14px rgb(20 32 48 / 0.12); --shadow-panel: 0 20px 50px -20px rgb(20 32 48 / 0.15);
-  --shadow-card: 0 8px 30px rgb(20 32 48 / 0.06);
-  --wash-cool: color-mix(in oklab, #173d6e 5%, transparent); --wash-warm: color-mix(in oklab, #fdb713 16%, transparent);
-  --shimmer: linear-gradient(110deg, #d99b00 0%, #8a5c00 25%, #fdb713 50%, #8a5c00 75%, #d99b00 100%);
-  --lockup-plaque: #173d6e; --show-dark: none; --show-light: inline-grid;
-  color-scheme: light;
+:root[data-theme="dark"] {
+  --canvas: #10263b; --surface: #18344e; --elevated: #214562; --hairline: #355a78; --hairline-strong: #4e7191;
+  --ink: #f3f7fb; --ink-muted: #c4d2df; --ink-faint: #a8bed0;
+  --accent-soft: #ffcf60; --accent-text: #ffcf60; --ok: #61d5aa; --warn: #ffb076; --info: #82cef6; --danger: #ff8da3;
+  --shadow-header: 0 8px 24px -16px rgb(0 0 0 / .55); --shadow-panel: 0 24px 60px -26px rgb(0 0 0 / .5);
+  --shadow-card: 0 8px 30px rgb(0 0 0 / .15);
+  --wash-cool: color-mix(in oklab, #82b2df 11%, transparent); --wash-warm: color-mix(in oklab, #fdb713 6%, transparent);
+  --shimmer: linear-gradient(110deg, #ffcf60, #ffe49b);
+  --lockup-plaque: #173d6e; --show-dark: inline-grid; --show-light: none;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
@@ -107,13 +85,13 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
   position: sticky; top: 0; z-index: 30; border-bottom: 1px solid var(--hairline);
   background: color-mix(in oklab, var(--canvas) 95%, transparent); box-shadow: var(--shadow-header);
 }
-.topbar-inner { max-width: 80rem; margin: 0 auto; display: flex; align-items: center; gap: 1.5rem; padding: 0.875rem 1.25rem; }
+.topbar-inner { max-width: 80rem; margin: 0 auto; display: flex; align-items: center; gap: 1.5rem; padding: 0.65rem 1.25rem; }
 .brand { display: flex; align-items: center; border-radius: 0.5rem; transition: opacity .2s; }
 .brand:hover { opacity: .85; text-decoration: none; }
 .brand-mark { display: flex; align-items: center; gap: 0.625rem; user-select: none; }
 .brand-lockup {
-  height: 1.75rem; width: auto; box-sizing: content-box; padding: 0.25rem 0.375rem; border-radius: 0.375rem;
-  background: var(--lockup-plaque); /* the white wordmark gets its own navy back in light mode */
+  height: 3rem; width: 3rem; object-fit: contain; border-radius: 0.375rem;
+  background: var(--lockup-plaque);
 }
 .brand-mark.large .brand-lockup { height: 2.25rem; }
 .brand-word { font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
@@ -124,8 +102,9 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 }
 .brand-divider { width: 1px; height: 1.25rem; background: color-mix(in oklab, var(--hairline-strong) 80%, transparent); }
 .brand-product { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; letter-spacing: -0.01em; }
+.brand-product .shimmer { background: none; -webkit-text-fill-color: currentColor; color: var(--ink); }
 .brand-mark.large .brand-product { font-size: 1rem; font-weight: 700; }
-.brand-dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.brand-dot { display: none; }
 
 .topbar-tools { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; font-size: 0.75rem; color: var(--ink-faint); }
 .topbar-tools form { margin: 0; }
@@ -537,48 +516,42 @@ input[type="search"]::-webkit-search-cancel-button { display: none; }
 .checks .text { min-width: 0; flex: 1; }
 
 /* --- sign-in ------------------------------------------------------------------- */
-.auth { width: 100%; max-width: 56rem; min-height: 68vh; margin: 0 auto; display: grid; align-content: center; align-items: center; gap: 2rem; padding: 1rem 0; }
+.auth { width: 100%; max-width: 66rem; min-height: calc(100vh - 10rem); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; align-items: center; gap: 2rem; padding: 2rem 0; }
 .auth-aside {
-  position: relative; display: none; overflow: hidden; padding: 2.25rem; border-radius: 1.5rem;
-  border: 1px solid color-mix(in oklab, var(--hairline-strong) 80%, transparent);
-  background: color-mix(in oklab, var(--surface) 70%, transparent); box-shadow: var(--shadow-panel);
+  position: relative; display: none; overflow: hidden; padding: 2rem; border-radius: var(--radius);
+  border: 1px solid var(--hairline); background: var(--surface); box-shadow: var(--shadow-card);
 }
-/* Three soft light pools behind the copy, held still. */
-.auth-aside::before {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(16rem 16rem at 8% 0%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 70%),
-              radial-gradient(18rem 18rem at 100% 100%, color-mix(in oklab, var(--info) 18%, transparent), transparent 70%),
-              radial-gradient(14rem 14rem at 40% 50%, rgb(168 85 247 / .10), transparent 70%);
-}
+.auth-aside::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, #173d6e, #fdb713); }
 .auth-aside > * { position: relative; }
 .platform-pill {
   display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.875rem; border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--accent) 40%, transparent); background: color-mix(in oklab, var(--accent) 10%, transparent);
-  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; color: var(--accent-text); box-shadow: 0 0 15px rgb(253 183 19 / .2);
+  border: 1px solid color-mix(in oklab, var(--accent) 35%, var(--hairline)); background: color-mix(in oklab, var(--accent) 9%, var(--surface));
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; color: var(--accent-text);
 }
-.platform-pill::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 25%, transparent); }
+.platform-pill::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--accent); }
 .auth-aside h2 { margin-top: 1rem; font-size: 1.875rem; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; }
 .auth-aside h2 .shimmer { font-size: 2.25rem; }
 .auth-lead { margin-top: 0.75rem; max-width: 28rem; font-size: 0.875rem; line-height: 1.6; color: var(--ink-muted); }
-.features { margin-top: 2rem; display: grid; gap: 0.875rem; }
+.features { margin-top: 1.75rem; display: grid; gap: 0; }
 .feature {
-  display: flex; align-items: flex-start; gap: 0.875rem; padding: 1rem; border-radius: var(--radius);
-  border: 1px solid color-mix(in oklab, var(--hairline) 70%, transparent); background: color-mix(in oklab, var(--canvas) 60%, transparent);
-  transition: border-color .3s, transform .3s var(--ease), box-shadow .3s;
+  display: flex; align-items: flex-start; gap: 0.875rem; padding: 0.9rem 0;
+  border-top: 1px solid var(--hairline);
 }
-.feature:hover { transform: translateX(6px); border-color: color-mix(in oklab, var(--accent) 50%, transparent); box-shadow: 0 8px 25px -8px rgb(253 183 19 / .2); }
 .feature h3 { font-size: 0.875rem; font-weight: 600; color: var(--ink); }
-.feature:hover h3 { color: var(--accent); }
 .feature p { margin-top: 0.125rem; font-size: 0.75rem; color: var(--ink-muted); }
-.auth-main { width: 100%; max-width: 28rem; margin: 0 auto; }
+.auth-main { width: 100%; max-width: 28rem; min-width: 0; margin: 0 auto; }
 .auth-brand { margin-bottom: 1.5rem; }
-.auth-head { display: grid; gap: 0.25rem; margin-bottom: 1.5rem; justify-items: start; }
-.auth-head h1 { font-size: 1.875rem; font-weight: 700; letter-spacing: -0.02em; }
+.auth-head { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); align-items: center; justify-items: start; gap: 0.25rem 0.875rem; padding: 1.25rem; margin-bottom: 1rem; }
+.auth-head > :not(.auth-logo) { grid-column: 2; }
+.auth-head.no-logo { grid-template-columns: minmax(0, 1fr); }
+.auth-head.no-logo > * { grid-column: 1; }
+.auth-logo { grid-column: 1; grid-row: 1 / span 3; width: 3.5rem; height: 3.5rem; object-fit: contain; border-radius: 0.5rem; }
+.auth-head h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
 .auth-head p { font-size: 0.875rem; color: var(--ink-muted); }
 .tiny-pill { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0.75rem; border-radius: 999px; border: 1px solid var(--hairline); background: color-mix(in oklab, var(--surface) 80%, transparent); font-size: 0.75rem; font-weight: 600; }
 .tiny-pill::before { content: ""; width: 0.375rem; height: 0.375rem; border-radius: 999px; background: var(--accent); }
-.auth-card { padding: 1.75rem; overflow: hidden; border-color: color-mix(in oklab, var(--hairline-strong) 70%, transparent); box-shadow: 0 12px 40px -15px rgb(7 19 33 / .6); }
-.auth-card .sheen-line { background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: .8; }
+.auth-card { width: 100%; min-width: 0; padding: 1.75rem; overflow: hidden; border-color: var(--hairline); background: var(--surface); box-shadow: var(--shadow-card); }
+.auth-card .sheen-line { background: linear-gradient(90deg, #173d6e, #fdb713); opacity: .9; }
 .auth-card form { display: grid; gap: 1.25rem; }
 .auth-foot { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--hairline); font-size: 0.875rem; color: var(--ink-muted); }
 .text-button { width: 100%; padding: 0; border: 0; background: none; font: inherit; font-size: 0.875rem; color: var(--ink-muted); cursor: pointer; text-align: center; }
@@ -608,7 +581,7 @@ input[type="search"]::-webkit-search-cancel-button { display: none; }
   .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .detail-grid { grid-template-columns: minmax(0, 1fr) 22rem; align-items: start; }
-  .auth { grid-template-columns: 1fr 1fr; }
+  .auth { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .auth-aside { display: block; }
   .auth-brand { display: none; }
   .facts-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }

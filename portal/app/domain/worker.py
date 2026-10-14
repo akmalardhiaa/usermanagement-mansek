@@ -19,7 +19,7 @@ from typing import Mapping
 from app.ad_client import AdClient, AdError
 from app.domain.catalog import CatalogError, FIXED_TERM
 from app.domain.lifecycle import assert_transition, hash_payload
-from app.domain.plan import account_name_for, build_plan, verify
+from app.domain.plan import account_name_for, build_plan, office_for, verify
 from app.domain.store import Store, audit, new_id, now_iso, record_activity
 
 MAX_ATTEMPTS = 3
@@ -175,14 +175,19 @@ class Worker:
             name = params["sAMAccountName"]
             domain = (self.env.get("LDAP_DOMAIN") or "").strip()
             created = self.ad.create_account({
-                "sAMAccountName": name, "userPrincipalName": f"{name}@{domain}" if domain else payload["email"],
+                "sAMAccountName": name, "userPrincipalName": f"{name.lower()}@{domain}" if domain else payload["email"],
                 "displayName": payload["displayName"], "givenName": params.get("givenName"), "sn": params.get("sn"),
                 "mail": payload["email"], "department": payload["department"], "title": payload["jobTitle"],
                 "manager": account_name_for(payload["managerEmail"]), "ou": params["ou"],
+                "company": (self.env.get("AD_COMPANY_NAME") or "").strip(),
+                "office": office_for(payload.get("locationType"), payload.get("branchName")),
+                "description": payload.get("jobDescription"), "expiredDate": payload.get("expiredDate"),
             })
             return created["objectGUID"]
         if key == "set-attributes":
-            self.ad.set_attributes(guid, {k: params.get(k) for k in ("displayName", "department", "title", "manager")})
+            self.ad.set_attributes(guid, {k: params.get(k) for k in ("displayName", "givenName", "sn",
+                                                                  "department", "title", "manager",
+                                                                  "company", "office", "description", "expiredDate")})
         elif key == "grant-groups" and params.get("groups"):
             self.ad.change_groups(guid, params["groups"], [])
         elif key == "revoke-groups" and params.get("groups"):
@@ -262,9 +267,15 @@ class Worker:
                     "displayName": payload["displayName"], "email": payload["email"], "jobTitle": payload["jobTitle"],
                     "jobDescription": payload.get("jobDescription"), "department": payload["department"],
                     "employmentType": payload.get("employmentType"), "expiredDate": payload.get("expiredDate"),
+                    "workerCategory": payload.get("workerCategory"),
                     "locationType": payload.get("locationType"), "branchName": payload.get("branchName"),
                     "managerName": payload["managerName"], "managerEmail": payload["managerEmail"],
                     "status": status, "objectGUID": observed["objectGUID"], "createdAt": at, "updatedAt": at,
+                    "sAMAccountName": observed.get("sAMAccountName"),
+                    "cn": observed.get("cn"),
+                    "userPrincipalName": observed.get("userPrincipalName"),
+                    "distinguishedName": observed.get("distinguishedName"),
+                    "company": observed.get("company"), "office": observed.get("office"),
                 }
                 data["employees"].append(employee)
                 request["employeeId"] = employee["id"]
@@ -277,12 +288,15 @@ class Worker:
                         employee.update(department=payload["toDepartment"], jobTitle=payload["toJobTitle"],
                                         jobDescription=payload.get("toJobDescription"),
                                         managerName=payload["toManagerName"], managerEmail=payload["toManagerEmail"])
+                        if payload.get("toWorkerCategory"):
+                            employee.update(workerCategory=payload["toWorkerCategory"],
+                                            locationType=payload.get("toLocationType"), branchName=payload.get("toBranchName"))
                         record_activity(data, request["requester"]["name"], "transfer.requested",
                                         f"{employee['displayName']} pindah ke {payload['toDepartment']}.", employee)
                     elif payload["kind"] == "PROFILE_UPDATE":
                         profile = payload["profile"]
                         employee.update({k: profile.get(k) for k in ("firstName", "lastName", "displayName", "jobTitle",
-                                                                      "jobDescription", "department", "employmentType",
+                                                                      "jobDescription", "department", "employmentType", "workerCategory",
                                                                       "locationType", "description")})
                         employee["expiredDate"] = profile.get("expiredDate") if profile.get("employmentType") in FIXED_TERM else None
                         employee["branchName"] = profile.get("branchName") if profile.get("locationType") == "CABANG" else None
@@ -293,7 +307,12 @@ class Worker:
                     else:
                         record_activity(data, request["requester"]["name"], "access.disabled",
                                         f"Akun {employee['displayName']} dinonaktifkan dan dipindah ke karantina.", employee)
-                    employee.update(status=status, objectGUID=observed["objectGUID"], updatedAt=at)
+                    employee.update(status=status, objectGUID=observed["objectGUID"], updatedAt=at,
+                                    sAMAccountName=observed.get("sAMAccountName"),
+                                    cn=observed.get("cn"),
+                                    userPrincipalName=observed.get("userPrincipalName"),
+                                    distinguishedName=observed.get("distinguishedName"),
+                                    company=observed.get("company"), office=observed.get("office"))
             audit(data, self.worker_id, "AD Worker", "WORKER", "execution.completed", request["id"],
                   {"objectGUID": observed["objectGUID"]})
 
@@ -313,7 +332,7 @@ class Worker:
             (folder / "ringkasan.txt").write_text(
                 "\n".join(f"{label}: {payload.get(key) or '-'}" for label, key in (
                     ("Nama", "displayName"), ("Email", "email"), ("User ID", "userId"), ("Departemen", "department"),
-                    ("Jabatan", "jobTitle"), ("Status kepegawaian", "employmentType"), ("Tanggal mulai", "startDate"),
+                    ("Jabatan", "jobTitle"), ("Status kepegawaian", "employmentType"),
                     ("Tanggal terakhir bekerja", "expiredDate"), ("Manager", "managerName"))) + "\n",
                 encoding="utf-8")
         except OSError as error:

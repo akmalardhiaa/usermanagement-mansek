@@ -98,7 +98,7 @@ def _nav_active(path: str, href: str) -> bool:
 
 def brand_logo(env: Mapping[str, str]) -> str | None:
     """The logo NEXT_PUBLIC_BRAND_LOGO names (/brand/<file>), when that file is in static/brand."""
-    configured = (env.get("NEXT_PUBLIC_BRAND_LOGO") or env.get("BRAND_LOGO") or "").strip()
+    configured = (env.get("NEXT_PUBLIC_BRAND_LOGO") or env.get("BRAND_LOGO") or "mandiri-sekuritas.png").strip()
     name = configured.rsplit("/", 1)[-1]
     if not name or name.startswith("your-") or not (APP_DIR / "static" / "brand" / name).is_file():
         return None

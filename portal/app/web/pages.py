@@ -10,7 +10,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.ad_client import AdError
 from app.domain.background import minutes_or_seconds
-from app.domain.catalog import DEPARTMENTS, department_ou, department_pairs, department_parent, CatalogError
+from app.domain.catalog import (DEPARTMENTS, CatalogError, department_ou, department_pairs, department_parent,
+                                structured_routing, structured_targets)
 from app.domain.lifecycle import jakarta_text
 from app.domain.store import now_iso
 from app.domain.sync import sync_sources
@@ -110,25 +111,32 @@ def ad_checks(ctx: Context, env) -> list[dict]:
         checks.append(_check("quarantine-ou", "OU karantina", "fail", "AD_QUARANTINE_OU belum diisi."))
 
     try:
-        pairs, parent = department_pairs(env), department_parent(env)
-        if not pairs and not parent:
-            checks.append(_check("department-ous", "OU per divisi", "skip",
-                                 "AD_DEPARTMENT_OUS dan AD_DEPARTMENT_OU_PARENT kosong: semua akun baru masuk AD_OU_STANDARD."))
+        if structured_routing(env):
+            targets = structured_targets(env)
+            absent = [(label, ou) for label, ou in targets if not ctx.ad.entry_exists(ou)]
+            checks.append(_check("placement-ous", "OU penempatan", "fail" if absent else "ok",
+                                 "OU tidak ditemukan: " + "; ".join(f"{label} ({ou})" for label, ou in absent) + "."
+                                 if absent else f"{len(targets)} OU penempatan ditemukan."))
         else:
-            named = {d.lower() for d, _ in pairs}
-            targets = [(d, ou, True) for d, ou in pairs]
-            if parent:
-                targets += [(d, department_ou(d, env), False) for d in DEPARTMENTS if d.lower() not in named]
-            absent = [(d, ou, explicit) for d, ou, explicit in targets if not ctx.ad.entry_exists(ou)]
-            if any(explicit for _, _, explicit in absent):
-                checks.append(_check("department-ous", "OU per divisi", "fail",
-                                     "OU divisi tidak ditemukan: " + "; ".join(f"{d} ({ou})" for d, ou, e in absent if e) + "."))
-            elif absent:
-                checks.append(_check("department-ous", "OU per divisi", "warn",
-                                     f"{len(targets) - len(absent)} OU divisi ditemukan; belum ada untuk: "
-                                     + ", ".join(d for d, _, _ in absent) + "."))
+            pairs, parent = department_pairs(env), department_parent(env)
+            if not pairs and not parent:
+                checks.append(_check("department-ous", "OU per divisi", "skip",
+                                     "AD_DEPARTMENT_OUS dan AD_DEPARTMENT_OU_PARENT kosong: semua akun baru masuk AD_OU_STANDARD."))
             else:
-                checks.append(_check("department-ous", "OU per divisi", "ok", f"{len(targets)} OU divisi ditemukan."))
+                named = {d.lower() for d, _ in pairs}
+                targets = [(d, ou, True) for d, ou in pairs]
+                if parent:
+                    targets += [(d, department_ou(d, env), False) for d in DEPARTMENTS if d.lower() not in named]
+                absent = [(d, ou, explicit) for d, ou, explicit in targets if not ctx.ad.entry_exists(ou)]
+                if any(explicit for _, _, explicit in absent):
+                    checks.append(_check("department-ous", "OU per divisi", "fail",
+                                         "OU divisi tidak ditemukan: " + "; ".join(f"{d} ({ou})" for d, ou, e in absent if e) + "."))
+                elif absent:
+                    checks.append(_check("department-ous", "OU per divisi", "warn",
+                                         f"{len(targets) - len(absent)} OU divisi ditemukan; belum ada untuk: "
+                                         + ", ".join(d for d, _, _ in absent) + "."))
+                else:
+                    checks.append(_check("department-ous", "OU per divisi", "ok", f"{len(targets)} OU divisi ditemukan."))
     except CatalogError as error:
         checks.append(_check("department-ous", "OU per divisi", "fail", str(error)))
 

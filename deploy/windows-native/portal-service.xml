@@ -1,0 +1,10 @@
+<service>
+  <id>HC-Portal</id><name>HC Portal</name><description>Human Capital User Management portal</description>
+  <executable>%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe</executable>
+  <arguments>-NoProfile -ExecutionPolicy Bypass -File "%BASE%\start-portal.ps1"</arguments>
+  <workingdirectory>%BASE%</workingdirectory><startmode>Automatic</startmode>
+  <depend>HC-AD-Service</depend>
+  <serviceaccount><domain>NT AUTHORITY</domain><user>LocalService</user></serviceaccount>
+  <onfailure action="restart" delay="10 sec"/><onfailure action="restart" delay="30 sec"/>
+  <stoptimeout>30 sec</stoptimeout><logpath>%ProgramData%\HCUserManagement\logs</logpath><log mode="roll"/>
+</service>

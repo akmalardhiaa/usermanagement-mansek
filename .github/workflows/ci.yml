@@ -13,6 +13,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  windows-deployment:
+    name: Office deployment scripts (mocked)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check office runtime invariants in Windows PowerShell 5.1
+        shell: powershell
+        run: ./deploy/windows/test-office-runtime.ps1
+
   portal:
     name: Portal (Python)
     runs-on: ubuntu-latest
@@ -27,6 +36,8 @@ jobs:
           cache: pip
           cache-dependency-path: portal/requirements*.txt
       - run: pip install -r requirements-dev.txt
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt
       - run: python -m pytest -q
 
   ad-service:
@@ -42,7 +53,8 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - run: mvn -B test
+      - run: mvn -B package
+      - run: python audit_jar.py
 
   # The images are not published anywhere; this only proves both
   # Containerfiles still build with Podman on Linux.

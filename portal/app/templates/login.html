@@ -24,7 +24,8 @@
   </aside>
 
   <div class="auth-main">
-    <div class="auth-head">
+    <div class="auth-head page-header{{ ' no-logo' if not brand_logo }}">
+      {% if brand_logo %}<img class="auth-logo" src="{{ brand_logo }}" alt="{{ brand }}" width="56" height="56">{% endif %}
       <span class="tiny-pill"><span class="shimmer">User Management</span></span>
       <h1>{% block auth_title %}Masuk Portal{% endblock %}</h1>
       <p>{% block auth_subtitle %}Silakan masukkan kredensial akun Human Capital Anda.{% endblock %}</p>

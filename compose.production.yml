@@ -1,11 +1,11 @@
-# The portal at the office: two containers, from images loaded with
+# Linux office deployment: two containers, from images loaded with
 # `podman load` (no internet needed), or built here with `--build`.
 #
 #   podman compose -f compose.production.yml up -d
 #
 # Settings: .env.production.local (copy deploy/windows/env.production.example).
-# The portal listens on 127.0.0.1:3000 only; IIS in front of it serves HTTPS
-# to the office (deploy/windows/web.config). Guide: PANDUAN-PC-KANTOR.md.
+# The portal listens on 127.0.0.1:3000 only. A Linux reverse proxy serves HTTPS.
+# Guide: deploy/linux/README.md.
 
 name: hc
 
@@ -22,11 +22,13 @@ services:
       - .env.production.local
     environment:
       APP_ENV: production
+      DEMO_LOGIN: "off"
       AD_SERVICE_URL: http://ad-service:8081
     volumes:
-      # A named volume keeps the JSON store on the Linux VM filesystem, where
-      # atomic rename works reliably; do not replace it with a Windows folder.
+      # A named volume keeps the JSON store on the Linux filesystem.
       - hc-portal-data:/app/data
+      # Also needed when SMTP_CA_CERT_PATH points to this CA bundle.
+      - ./certs/corp-root-ca.pem:/run/certs/corp-root-ca.pem:ro,z
     # Declared here: Podman builds OCI images, and OCI drops HEALTHCHECK.
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:3000/healthz', timeout=4).status == 200 else 1)"]
@@ -50,9 +52,10 @@ services:
       - .env.production.local
     environment:
       APP_ENV: production
+      DEMO_LOGIN: "off"
     volumes:
-      # The company root CA, exported as PEM. Add :Z only on an SELinux host.
-      - ./certs/corp-root-ca.pem:/run/certs/corp-root-ca.pem:ro
+      # Shared SELinux label allows both containers to read the same public CA.
+      - ./certs/corp-root-ca.pem:/run/certs/corp-root-ca.pem:ro,z
     restart: always
 
 volumes:

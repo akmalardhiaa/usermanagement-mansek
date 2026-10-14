@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from typing import Mapping
 
 DEPARTMENT_GROUPS: list[tuple[str, list[str]]] = [
+    ("Kantor pusat (OU)", ["Capital Market", "CEO Functional", "Generic", "Intren", "Invesment Banking",
+                            "Operations", "Retail", "Settelment and Custody", "Tecnology"]),
     ("Front office", ["Investment Banking", "Institutional Sales", "Retail Brokerage", "Equity Research",
                       "Fixed Income", "Treasury", "Sales", "Research"]),
     ("Middle & back office", ["Risk Management", "Compliance", "Internal Audit", "Operations", "Settlement", "Legal"]),
@@ -44,6 +46,11 @@ JOB_TITLES = [item for _, items in JOB_TITLE_GROUPS for item in items]
 EMPLOYMENT_TYPES = {"PERMANENT": "Tetap (Permanent)", "CONTRACT": "Kontrak (Temporary)"}
 FIXED_TERM = {"CONTRACT"}
 LOCATIONS = {"PUSAT": "Kantor pusat", "CABANG": "Cabang"}
+WORKER_CATEGORIES = {"INTERNAL": "Internal", "EXTERNAL": "External", "INTERN": "Intern"}
+HQ_UNITS = ("Capital Market", "CEO Functional", "Generic", "Intren", "Invesment Banking",
+            "Operations", "Retail", "Settelment and Custody", "Tecnology")
+BRANCHES = ("Bandung", "Batam", "Jakarta", "Makasar", "Medan", "Semarang",
+            "Singapore Subsidiary", "Surabaya")
 TERMINATION_REASONS = {
     "RESIGN": "Mengundurkan diri",
     "CONTRACT_END": "Kontrak berakhir",
@@ -157,6 +164,88 @@ def department_ou(department: str | None, env: Mapping[str, str] | None = None) 
             return ou
     parent = department_parent(env)
     return f"OU={escape_dn_value(name)},{parent}" if parent else None
+
+
+def structured_routing(env: Mapping[str, str] | None = None) -> bool:
+    return (_env(env).get("AD_OU_ROUTING_MODE") or "").strip().upper() == "STRUCTURED"
+
+
+def ou_name_map(env: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Optional display-name to actual OU-name overrides for existing AD spelling."""
+    raw = (_env(env).get("AD_OU_NAME_MAP") or "").strip()
+    allowed = {name.casefold(): name for name in (*HQ_UNITS, *BRANCHES)}
+    names: dict[str, str] = {}
+    for part in raw.split(";"):
+        if not part.strip():
+            continue
+        label, separator, actual = part.partition("=>")
+        canonical = allowed.get(label.strip().casefold())
+        if not separator or not canonical or not actual.strip() or canonical in names:
+            raise CatalogError(f"AD_OU_NAME_MAP tidak valid: {part.strip()}.")
+        names[canonical] = actual.strip()
+    for scope in (HQ_UNITS, BRANCHES):
+        actual_names = [names.get(label, label).casefold() for label in scope]
+        if len(actual_names) != len(set(actual_names)):
+            raise CatalogError("AD_OU_NAME_MAP mengarahkan dua pilihan ke OU yang sama.")
+    return names
+
+
+def placement_ou(category: str | None, location: str | None, department: str | None,
+                 branch: str | None, env: Mapping[str, str] | None = None) -> str:
+    """Resolve the approved company hierarchy; refuse unknown names before any AD write."""
+    values = _env(env)
+    if category not in WORKER_CATEGORIES or location not in LOCATIONS:
+        raise CatalogError("Jenis pekerja dan lokasi penempatan wajib dipilih.")
+    if category == "INTERN":
+        if location != "PUSAT":
+            raise CatalogError("Intern saat ini hanya memiliki penempatan Kantor Pusat.")
+        return _required(values, "AD_OU_INTERN")
+    if location == "CABANG":
+        city = next((name for name in BRANCHES if name.casefold() == (branch or "").strip().casefold()), None)
+        if city is None:
+            raise CatalogError("Nama cabang tidak dikenal dalam struktur OU.")
+        parent = _required(values, "AD_OU_EXTERNAL_CABANG_PARENT" if category == "EXTERNAL"
+                           else "AD_OU_INTERNAL_CABANG_PARENT")
+        return f"OU={escape_dn_value(ou_name_map(values).get(city, city))},{parent}"
+    if category == "EXTERNAL":
+        return _required(values, "AD_OU_EXTERNAL_PUSAT")
+    unit = next((name for name in HQ_UNITS if name.casefold() == (department or "").strip().casefold()), None)
+    if unit is None:
+        raise CatalogError("Divisi kantor pusat tidak dikenal dalam struktur OU.")
+    return f"OU={escape_dn_value(ou_name_map(values).get(unit, unit))},{_required(values, 'AD_OU_INTERNAL_PUSAT_PARENT')}"
+
+
+def structured_targets(env: Mapping[str, str] | None = None) -> list[tuple[str, str]]:
+    """Every required leaf OU, used by the status page before writes are enabled."""
+    targets = [(f"Pusat / {unit}", placement_ou("INTERNAL", "PUSAT", unit, None, env)) for unit in HQ_UNITS]
+    for city in BRANCHES:
+        targets.append((f"Cabang / {city}", placement_ou("INTERNAL", "CABANG", None, city, env)))
+    targets.append(("External / Pusat", placement_ou("EXTERNAL", "PUSAT", None, None, env)))
+    targets.append(("Intern", placement_ou("INTERN", "PUSAT", None, None, env)))
+    for city in BRANCHES:
+        targets.append((f"External / Cabang / {city}", placement_ou("EXTERNAL", "CABANG", None, city, env)))
+    return targets
+
+
+def placement_from_ou(ou: str | None, env: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Classify existing AD accounts without guessing from their employment status."""
+    if not structured_routing(env) or not ou:
+        return {}
+    if same_dn(ou, placement_ou("INTERN", "PUSAT", None, None, env)):
+        return {"workerCategory": "INTERN", "locationType": "PUSAT"}
+    for category in WORKER_CATEGORIES:
+        if category == "INTERN":
+            continue
+        if category == "EXTERNAL" and same_dn(ou, placement_ou("EXTERNAL", "PUSAT", None, None, env)):
+            return {"workerCategory": category, "locationType": "PUSAT"}
+        if category == "INTERNAL":
+            for unit in HQ_UNITS:
+                if same_dn(ou, placement_ou(category, "PUSAT", unit, None, env)):
+                    return {"workerCategory": category, "locationType": "PUSAT"}
+        for city in BRANCHES:
+            if same_dn(ou, placement_ou(category, "CABANG", None, city, env)):
+                return {"workerCategory": category, "locationType": "CABANG", "branchName": city}
+    return {}
 
 
 def same_dn(left: str | None, right: str | None) -> bool:

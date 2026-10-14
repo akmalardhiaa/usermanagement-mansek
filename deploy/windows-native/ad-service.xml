@@ -1,0 +1,9 @@
+<service>
+  <id>HC-AD-Service</id><name>HC AD Service</name><description>Human Capital Active Directory service</description>
+  <executable>%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe</executable>
+  <arguments>-NoProfile -ExecutionPolicy Bypass -File "%BASE%\start-ad-service.ps1"</arguments>
+  <workingdirectory>%BASE%</workingdirectory><startmode>Automatic</startmode>
+  <serviceaccount><domain>NT AUTHORITY</domain><user>LocalService</user></serviceaccount>
+  <onfailure action="restart" delay="10 sec"/><onfailure action="restart" delay="30 sec"/>
+  <stoptimeout>30 sec</stoptimeout><logpath>%ProgramData%\HCUserManagement\logs</logpath><log mode="roll"/>
+</service>

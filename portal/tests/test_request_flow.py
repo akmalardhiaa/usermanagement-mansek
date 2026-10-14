@@ -173,7 +173,8 @@ def test_movement_moves_the_account_to_the_new_division(office):
     approve(client, send_and_collect(ctx, folder, 1)[0]["token"])
     assert ctx.lifecycle.get(request_id)["status"] == "QUEUED"
 
-    assert ctx.worker.run_due()["completed"] == 1
+    report = ctx.worker.run_due()
+    assert report["completed"] == 1, report
     account = directory.find_by_name("rizky.maulana")
     assert account["ou"] == f"OU=Risk Management,{PEOPLE}"
     assert account["department"] == "Risk Management" and account["manager"] == "dimas.anggara"
@@ -318,3 +319,78 @@ def test_a_change_somebody_else_made_still_stops_the_run(office):
     ctx.store.mutate(lambda data: next(e for e in data["employees"] if e["id"] == rizky["id"]).update(department="Finance"))
     assert ctx.worker.run_due()["failed"] == 1
     assert "berubah sejak pengajuan disetujui" in client.get(f"/pengajuan/{request_id}").text
+
+
+def test_structured_external_branch_onboarding_and_internal_hq_movement(office):
+    client, ctx, directory, folder = office
+    base = "DC=corp,DC=example"
+    external_batam = f"OU=Batam,OU=Cabang,OU=External,{base}"
+    internal_retail = f"OU=Retail,OU=Kantor Pusat,{base}"
+    directory.ous.update({external_batam, internal_retail})
+    ctx.env.update({
+        "AD_OU_ROUTING_MODE": "STRUCTURED",
+        "AD_OU_INTERNAL_PUSAT_PARENT": f"OU=Kantor Pusat,{base}",
+        "AD_OU_INTERNAL_CABANG_PARENT": f"OU=Kantor Cabang,{base}",
+        "AD_OU_EXTERNAL_PUSAT": f"OU=Pusat,OU=External,{base}",
+        "AD_OU_EXTERNAL_CABANG_PARENT": f"OU=Cabang,OU=External,{base}",
+    })
+    request_id = raise_request(client, onboarding_form(
+        workerCategory="EXTERNAL", locationType="CABANG", branchName="Batam",
+        department="Generic"))
+    approve_both(client, ctx, folder)
+    assert ctx.worker.run_due()["completed"] == 1
+    account = directory.find_by_name("nadia.putri")
+    assert account["ou"] == external_batam
+    assert account["groups"] == [GROUP_BASE]
+    assert employee(ctx, "nadia.putri@example.com")["workerCategory"] == "EXTERNAL"
+
+    created = employee(ctx, "nadia.putri@example.com")
+    request_id = raise_request(client, {
+        "jenis": "mutasi", "employeeId": created["id"], "toDepartment": "Retail",
+        "toJobTitle": "Analyst", "toManagerEmail": "dimas.anggara@example.com",
+        "toWorkerCategory": "INTERNAL", "toLocationType": "PUSAT",
+    })
+    seen = len(mails(folder))
+    manager_mail = next(m for m in send_and_collect(ctx, folder, seen)
+                        if m["token"] and ctx.lifecycle.preview_by_token(m["token"]).get("request", {}).get("id") == request_id)
+    assert approve(client, manager_mail["token"]).status_code == 200
+    seen = len(mails(folder))
+    ciso_mail = next(m for m in send_and_collect(ctx, folder, seen)
+                     if m["token"] and ctx.lifecycle.preview_by_token(m["token"]).get("request", {}).get("id") == request_id)
+    assert approve(client, ciso_mail["token"]).status_code == 200
+    assert ctx.lifecycle.get(request_id)["status"] == "QUEUED", ctx.lifecycle.get(request_id)
+    report = ctx.worker.run_due()
+    assert report["completed"] == 1, report
+    account = directory.find_by_name("nadia.putri")
+    assert account["ou"] == internal_retail
+    assert account["groups"] == [GROUP_BASE]
+    assert employee(ctx, "nadia.putri@example.com")["workerCategory"] == "INTERNAL"
+
+
+def test_intern_account_is_written_only_after_approvals_with_ad_attributes(office):
+    client, ctx, directory, folder = office
+    intern_ou = "OU=Intern,DC=corp,DC=example"
+    directory.ous.add(intern_ou)
+    ctx.env.update({
+        "AD_OU_ROUTING_MODE": "STRUCTURED",
+        "AD_OU_INTERN": intern_ou,
+        "AD_COMPANY_NAME": "PT Mandiri Sekuritas",
+        "LDAP_DOMAIN": "mandirisekuritas.co.id",
+    })
+    form = onboarding_form(workerCategory="INTERN", locationType="PUSAT", department="Generic",
+                           userId="AMUMUBAROK367", jobDescription="TI Helpdesk", employmentType="CONTRACT",
+                           expiredDate="2026-12-31")
+    request_id = raise_request(client, form)
+    assert ctx.lifecycle.get(request_id)["status"] == "PENDING_MANAGER"
+    assert not directory.writes
+    approve_both(client, ctx, folder)
+    assert not directory.writes
+    assert ctx.worker.run_due()["completed"] == 1
+    account = directory.find_by_name("AMUMUBAROK367")
+    assert account["ou"] == intern_ou
+    assert account["userPrincipalName"] == "amumubarok367@mandirisekuritas.co.id"
+    assert account["company"] == "PT Mandiri Sekuritas"
+    assert account["office"] == "Kantor Pusat"
+    assert account["description"] == "TI Helpdesk"
+    assert account["accountExpires"] == "134432100000000000"
+    assert employee(ctx, "nadia.putri@example.com")["workerCategory"] == "INTERN"

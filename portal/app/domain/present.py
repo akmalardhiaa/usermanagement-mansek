@@ -3,9 +3,7 @@ so an approver reads in the email exactly what HC sees in the portal."""
 
 from __future__ import annotations
 
-from app.domain.catalog import ACCESS_PROFILES, EMPLOYMENT_TYPES, LOCATIONS, TERMINATION_REASONS
-
-_PROFILES = {p.id: p.label for p in ACCESS_PROFILES}
+from app.domain.catalog import EMPLOYMENT_TYPES, LOCATIONS, TERMINATION_REASONS, WORKER_CATEGORIES
 
 
 def _date(value: str | None) -> str:
@@ -27,6 +25,7 @@ def payload_rows(payload: dict, internal: bool = False) -> list[tuple[str, str]]
             ("User ID", payload.get("userId") or "—"),
             ("Jabatan", payload["jobTitle"]),
             ("Departemen", payload["department"]),
+            ("Jenis pekerja", WORKER_CATEGORIES.get(payload.get("workerCategory", ""), "—")),
             ("Status kepegawaian", EMPLOYMENT_TYPES.get(payload.get("employmentType", ""), "—")),
         ]
         if payload.get("expiredDate"):
@@ -37,8 +36,6 @@ def payload_rows(payload: dict, internal: bool = False) -> list[tuple[str, str]]
         rows += [
             ("Lokasi", location),
             ("Manager", f"{payload['managerName']} ({payload['managerEmail']})"),
-            ("Tanggal mulai", _date(payload.get("startDate"))),
-            ("Profil akses", _PROFILES.get(payload.get("accessProfileId") or "", "Mengikuti divisi")),
         ]
         if payload.get("jobDescription"):
             rows.append(("Keterangan jabatan", payload["jobDescription"]))
@@ -46,8 +43,10 @@ def payload_rows(payload: dict, internal: bool = False) -> list[tuple[str, str]]
         rows = [
             ("Departemen tujuan", payload["toDepartment"]),
             ("Jabatan tujuan", payload["toJobTitle"]),
+            ("Jenis pekerja tujuan", WORKER_CATEGORIES.get(payload.get("toWorkerCategory", ""), "—")),
+            ("Lokasi tujuan", LOCATIONS.get(payload.get("toLocationType", ""), "—")
+             + (f" — {payload['toBranchName']}" if payload.get("toBranchName") else "")),
             ("Manager tujuan", f"{payload['toManagerName']} ({payload['toManagerEmail']})"),
-            ("Profil akses", _PROFILES.get(payload.get("accessProfileId") or "", "Tidak berubah")),
         ]
         if payload.get("reason"):
             rows.append(("Alasan", payload["reason"]))

@@ -1,350 +1,206 @@
-# Panduan memasang portal di PC kantor
+# Menjalankan HC Portal di VM Windows Server 2022 kantor
 
-Panduan ini untuk memasang **HC User Management** di PC/server kantor yang akan
-dipakai sungguhan: tersambung ke Active Directory, mengirim email persetujuan,
-dan login HC memakai verifikasi 2 langkah (2FA).
+Jalur yang disiapkan: Windows Server 2022 x64 -> Hyper-V -> Podman 6+ ->
+dua container Linux. Tidak menggunakan WSL, Docker Desktop/Engine, atau Compose.
+Konfirmasikan edisi/build Windows dan versi Podman yang disetujui IT.
+Microsoft mendukung role Hyper-V pada Server 2022. Namun, panduan Podman Windows
+terbaru menyebut Windows 11 atau lebih baru dan tidak memastikan Server 2022.
+Jalur ini adalah kandidat deployment, bukan klaim dukungan resmi Podman di Server 2022.
+IT wajib menyetujui versi dan membuktikan init/start machine, akses jaringan,
+forwarding localhost, serta startup tanpa login pada VM ini sebelum produksi.
+Konfirmasikan instalasi Desktop Experience atau Server Core; pada Core gunakan
+PowerShell dan administrasi jarak jauh, bukan mengandalkan klik desktop.
+Jika kombinasi ini tidak lolos, hentikan deployment dan sepakati alternatif
+VM Linux dengan Podman bersama IT; jangan mengaktifkan WSL atau Docker sebagai fallback.
+VM aplikasi terpisah dari domain controller AD; tidak perlu memasang AD DS di VM aplikasi.
 
-Ikuti berurutan. Setiap bagian ditutup dengan **cek** — jangan lanjut sebelum
-ceknya berhasil. Detail teknis tambahan ada di
-[deploy/windows/README.md](deploy/windows/README.md).
+Baca [REQUEST-TIM-SERVER.md](REQUEST-TIM-SERVER.md) untuk permintaan infrastruktur
+dan [PANDUAN-AD-OU.md](PANDUAN-AD-OU.md) untuk akun layanan, OU dan alur user.
+Skrip disiapkan untuk lingkungan ini, tetapi penerimaan di VM kantor tetap wajib:
+pemeriksaan lokal kode tidak membuktikan Hyper-V, jaringan kantor, atau AD bekerja.
 
-> **Cara cepat lewat File Explorer (tanpa VS Code, tanpa mengetik perintah).**
-> Bagian 1–7 di bawah sudah dibungkus jadi berkas yang tinggal diklik dua kali,
-> semuanya ada di folder `C:\hc-portal`:
->
-> | Berkas | Menggantikan |
-> |---|---|
-> | `KANTOR-1-pasang-podman.bat` (klik kanan → *Run as administrator*) | bagian 1 |
-> | `KANTOR-2-siapkan.bat` | bagian 3 dan 5 (memuat image, membuat `.env.production.local` dengan dua kunci rahasia sudah terisi, membukanya di Notepad) |
-> | `KANTOR-3-jalankan.bat` | bagian 6 (memeriksa pengaturan, menyalakan, membuka browser) |
-> | `KANTOR-hentikan.bat`, `KANTOR-lihat-log.bat` | mematikan portal, melihat penyebab masalah |
->
-> Urutan singkatnya juga ada di `MULAI-DI-SINI.txt`. Perintah di bawah tetap
-> berlaku bila lebih suka PowerShell.
+## 1. Yang disiapkan tim server
 
-```
- Staf HC (browser)              Manajer & tim CISO (email)
-        │ https://<nama-portal>          │ klik Setujui / Tolak
-        ▼                                ▼
-   IIS (HTTPS) di PC kantor ──► portal  (container Python, 127.0.0.1:3000)
-                                   │  ├──► server email kantor (SMTP)
-                                   ▼  │
-                       layanan AD (container Java, tanpa port)
-                                   └──► Active Directory (LDAPS 636)
-```
+- Nested virtualization diaktifkan di host untuk VM Windows yang diberikan.
+  Hyper-V juga diaktifkan DI DALAM VM Windows, lalu restart.
+- Sebagai ukuran awal (belum hasil load test): Windows VM 4 vCPU, RAM 8 GiB,
+  disk 80 GiB dengan ruang untuk image, VM Linux, data dan backup.
+  Skrip membuat VM Linux Podman dengan 2 vCPU, RAM 4 GiB, disk 40 GiB.
+- Akun operator Windows tetap, anggota Hyper-V Administrators, boleh menjalankan
+  Task Scheduler saat boot meskipun belum login. Akun ini digunakan konsisten.
+  Jangan membuat machine sebagai akun administrator lain lalu menjalankannya
+  sebagai operator: koneksi, kunci SSH dan machine terkait profil pengguna.
+- MSI Podman 6+ x64 resmi, pilih provider Hyper-V. Tidak perlu Podman Desktop.
+  IT dapat menjalankan `podman system hyperv-prep` sesuai dokumentasi versi
+  terpasang untuk akun operator; jangan menambahkan akun yang salah ketika elevasi.
+- IIS, URL Rewrite, ARR, DNS portal dan sertifikat HTTPS dari IT.
+- Akses DNS kantor, DC LDAPS 636, relay email atau Graph, serta waktu yang sinkron.
 
-Portal terdiri dari **dua container**:
-
-| Container | Bahasa | Tugasnya |
-|---|---|---|
-| `hc-portal` | Python | Halaman untuk HC, pengajuan, email persetujuan, 2FA, data |
-| `hc-ad-service` | Java | Satu-satunya yang bicara ke Active Directory (login, baca, tulis OU) |
-
-Keduanya dijalankan bersama oleh `compose.production.yml`. Layanan AD tidak
-punya port ke luar: hanya portal yang bisa menghubunginya, dengan kunci
-bersama `AD_SERVICE_TOKEN`.
-
----
-
-## 0. Siapkan dulu
-
-### Yang diminta ke tim IT
-
-| Yang diminta | Diisi ke |
-|---|---|
-| Nama/alamat domain controller, LDAPS port **636** aktif dan bisa dijangkau dari PC ini | `AD_LDAP_URL` |
-| Sertifikat CA perusahaan (file `.cer`/`.pem`) | `certs\corp-root-ca.pem` |
-| **Akun layanan** + kata sandinya, didelegasikan hanya ke OU karyawan dan OU karantina (bukan Domain Admins) | `AD_BIND_DN`, `AD_BIND_PASSWORD` |
-| DN OU karyawan, OU per divisi, OU karantina | `AD_OU_*`, `AD_DEPARTMENT_*`, `AD_QUARANTINE_OU`, `AD_MANAGED_OUS` |
-| DN group HC (yang boleh masuk portal), group admin, group tim CISO, group akses | `AD_GROUP_*`, `CISO_APPROVER_GROUP`, `AD_ACCESS_GROUP_*` |
-| Server email (SMTP): host, port, login atau relay tanpa login, alamat pengirim — **atau**, bila Microsoft 365 mematikan login SMTP, app registration Graph dengan izin Mail.Send | `SMTP_*`, atau `EMAIL_DRIVER=graph` + `GRAPH_*` |
-| Nama DNS untuk portal + sertifikat HTTPS-nya (untuk IIS) | `APP_BASE_URL` |
-| Hak **administrator** di PC ini (untuk memasang WSL2, Podman, IIS) | — |
-| Apakah akun baru boleh aktif tanpa password? (lihat bagian 10) | — |
-
-### Yang Anda bawa ke PC kantor
-
-Di laptop, klik dua kali **`siapkan-pindah.bat`** dan isi tujuan (misalnya
-`D:\kirim-ke-kantor`). Hasilnya:
-
-| Berkas | Isinya |
-|---|---|
-| `hc-images.tar.gz` (±200 MB) | Kedua container yang sudah dirakit. PC kantor tidak perlu internet, Python, atau Java. |
-| `hc-images.sha256.txt` | Sidik jari, untuk memastikan berkasnya utuh setelah dikirim |
-| folder `hc-portal\` | Berkas proyek: compose, skrip, panduan, template pengaturan |
-
-Kirim lewat jalur yang diizinkan kantor (tanyakan ke pembimbing/IT).
-Kode juga bisa diambil di PC kantor dari GitHub (**Code → Download ZIP**);
-yang wajib dikirim hanya `hc-images.tar.gz`.
-
-**JANGAN** bawa folder `data`, `.env.dev.local`, `.env.local`, atau
-`.env.podman`. Isinya data uji dan kata sandi laptop. Di kantor portal mulai
-dengan data kosong dan langsung terisi dari AD. `siapkan-pindah.bat` sudah
-tidak menyertakannya.
-
----
-
-## 1. Pasang WSL2 dan Podman (sekali saja)
-
-1. Pastikan virtualisasi aktif: **Task Manager → Performance → CPU →
-   Virtualization: Enabled**. Kalau *Disabled*, minta IT menyalakannya di BIOS.
-2. Buka **PowerShell sebagai Administrator**:
-
-   ```powershell
-   wsl --install --no-distribution
-   ```
-
-   Restart PC bila diminta.
-3. Pasang Podman dan compose (keduanya gratis untuk perusahaan):
-
-   ```powershell
-   winget install -e --id RedHat.Podman
-   winget install -e --id Docker.DockerCompose
-   ```
-
-   Tutup lalu buka lagi PowerShell (biasa, bukan Administrator).
-4. Buat dan nyalakan mesin Podman. Dua container butuh memori lebih dari
-   bawaan, jadi beri 4 GB:
-
-   ```powershell
-   podman machine init --memory 4096
-   podman machine start
-   ```
-
-**Cek:** `podman info` menampilkan informasi tanpa error.
-
-> Pakai **satu akun Windows yang sama** untuk semua langkah berikutnya. Mesin
-> Podman milik akun yang membuatnya.
-
----
-
-## 2. Taruh berkas di `C:\hc-portal`
-
-Salin folder `hc-portal` dari paket menjadi `C:\hc-portal` (di dalamnya
-langsung ada `compose.production.yml`, `deploy`, `portal`, `ad-service`, dst).
+`deploy\windows\kantor-prasyarat.ps1` hanya MEMERIKSA prasyarat dan menampilkan
+langkah instalasi IT. Jalankan sebagai Administrator untuk membaca status fitur.
+Berkas ini tidak lagi memasang software atau menyalakan WSL.
+IT dapat mengaktifkan Hyper-V dengan PowerShell Administrator:
 
 ```powershell
-Set-Location C:\hc-portal
+Install-WindowsFeature -Name Hyper-V -IncludeManagementTools
+# Setelah restart yang dijadwalkan IT:
+Get-WindowsFeature Hyper-V, Hyper-V-PowerShell
 ```
 
-**Cek:** `Test-Path .\compose.production.yml` menjawab `True`.
+Restart mengikuti arahan IT. Nested virtualization harus lebih dulu tersedia
+di host. Bila host VMware/Azure, tim server mengikuti prosedur platform tersebut.
 
----
+## 2. Buat paket di laptop
 
-## 3. Muat image
+Nyalakan Podman laptop dan pastikan `podman info` berhasil. Laptop boleh tetap
+memakai backend pengembangannya; paket tidak mensyaratkan WSL pada kantor.
 
-Pertama, sekali saja, pasang perbaikan jaringan untuk mesin Podman (aman di
-jaringan mana pun; mencegah TLS macet saat memuat image, kirim email, dan LDAPS):
+Jalankan `powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy\windows\package-office.ps1 -Destination D:\kirim-ke-kantor`. Skrip:
+
+1. Membangun dua image Linux amd64 dari kode terbaru.
+2. Membuat folder paket baru (tidak menimpa/menghapus folder tujuan lama).
+3. Menyalin hanya daftar berkas deployment dan panduan yang ditentukan.
+4. Mengekspor `hc-images.tar`, SHA-256 dan ZIP.
+
+Hasil: `<tujuan>\hc-package-<waktu>-<id>\hc-portal-kantor.zip`.
+Arsip image multi-image memakai format yang kompatibel dengan Docker,
+tetapi dibuat/dimuat oleh Podman; tidak memerlukan produk Docker.
+Tidak menyertakan .env nyata, sertifikat, data demo, log atau repository git.
+Build memerlukan akses registry image dasar serta dependency Python/Maven
+di laptop. Jangan kirim folder proyek mentah yang berisi rahasia.
+
+Paket aplikasi ini bukan paket instalasi Podman offline lengkap.
+Inisialisasi Hyper-V pertama juga perlu image OS Podman dari registry.
+Untuk kantor tanpa internet, IT harus menyiapkan installer dan image OS/cache
+yang cocok dengan versi Podman melalui proses offline yang mereka dukung.
+Jangan menganggap `hc-images.tar` sudah berisi OS Podman.
+
+## 3. Siapkan aplikasi di kantor
+
+1. Ekstrak paket; taruh folder `hc-portal` misalnya di `C:\hc-portal`.
+2. Batasi ACL folder ke akun operator dan administrator. .env berisi rahasia.
+3. Login sebagai operator yang akan menjalankan startup/backup.
+4. Jalankan `powershell -NoProfile -File .\deploy\windows\kantor-siapkan.ps1`.
+   Skrip memilih provider Hyper-V dan koneksi `hc-office`, membuat machine bila
+   belum ada, memverifikasi SHA-256 dan memuat image.
+5. Isi `.env.production.local` yang dibuat dari template. Kunci service dan
+   enkripsi dibuat sekali secara acak; tidak diganti ketika setup diulang.
+6. Simpan CA publik/root+intermediate yang diperlukan sebagai
+   `certs\corp-root-ca.pem`. Jangan sertakan private key DC.
+7. Isi URL HTTPS portal di `APP_BASE_URL`. Placeholder pengaturan yang tidak
+   digunakan harus dikosongkan, bukan dibiarkan berupa `<...>`.
+8. Simpan .env UTF-8; nilai tanpa kutip, tanpa `export`, tanpa komentar di ujung
+   nilai. Karakter `$` pada password adalah literal, bukan interpolasi Compose.
+
+Setting wajib AD/OU dijelaskan pada panduan AD. Biarkan
+`AD_LDAP_WRITE_ENABLED=false` saat uji koneksi. Jalur kantor memakai dua volume:
+`hc-portal-data` untuk data persisten dan `hc-portal-certs` untuk CA publik.
+CA disalin memakai `podman cp` lalu dipasang read-only di kedua container,
+jadi tidak bergantung pada kemampuan mount drive Windows di Hyper-V.
+Bila SMTP memakai CA internal, isi `SMTP_CA_CERT_PATH=/run/certs/corp-root-ca.pem`
+dan sertakan rantai CA SMTP dalam bundle itu.
+
+## 4. IIS dan HTTPS
+
+Tim server membuat situs IIS terpisah dari folder .env/proyek, memasang binding
+HTTPS pada nama portal, dan menaruh `deploy\windows\web.config` di root situs.
+Ganti `hc.example.internal` dengan nama portal sebenarnya.
+Aktifkan proxy ARR dengan preserveHostHeader dan izinkan
+`HTTP_X_FORWARDED_PROTO` sesuai komentar di web.config.
+
+IIS meneruskan ke `http://127.0.0.1:3000`; container AD port 8081 tidak
+dipublikasikan ke Windows/LAN. Jangan membuka 3000 dan 8081 ke pengguna.
+Pengguna dan tautan approval email memakai HTTPS 443 pada IIS.
+Bila IT memakai proxy di server lain, konfigurasi ini perlu disesuaikan karena
+backend sekarang hanya terikat ke loopback Windows VM aplikasi.
+
+## 5. Menjalankan dan memeriksa
+
+Jalankan `powershell -NoProfile -File .\deploy\windows\kantor-jalankan.ps1`.
+Skrip ini menerapkan .env/image/CA terbaru dengan
+mengganti kedua container milik aplikasi. Akan ada jeda layanan singkat.
+Volume data dipertahankan. Resource bernama sama tanpa label kepemilikan aplikasi
+ditolak, bukan diambil alih. Pada boot, `start-portal.ps1` cukup menyalakan
+container yang ada tanpa menggantinya.
+
+Skrip menunggu HTTP portal dan Java menjawab. Ini belum membuktikan bind AD.
+Buka URL HTTPS dari browser, login memakai akun AD yang diberi group portal,
+daftarkan 2FA, lalu buka **Status sistem** sebagai admin/operator.
+Periksa bind service, OU, group, SMTP/Graph, dan kondisi read-only.
+Peringatan mode tulis mati memang diharapkan pada tahap ini.
+
+Bila gagal, jalankan `powershell -NoProfile -File .\deploy\windows\office-status.ps1`; samarkan data pribadi sebelum membagikan
+log. MTU tidak diubah otomatis. Bila ada masalah DNS/TLS, periksa dari container,
+bukan hanya dari Windows, karena jalurnya melewati VM Linux dan network container:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\deploy\windows\perbaiki-mtu.ps1
+$env:CONTAINERS_MACHINE_PROVIDER = 'hyperv'
+$env:CONTAINER_CONNECTION = 'hc-office'
+podman machine list
+podman info
+podman exec hc-ad-service getent hosts dc01.corp.example.com
+Test-NetConnection dc01.corp.example.com -Port 636
 ```
 
-Taruh `hc-images.tar.gz` di `C:\hc-portal`, periksa sidik jarinya, lalu muat:
+Ganti hostname contoh. `Test-NetConnection` hanya tes TCP dari Windows; halaman
+Status sistem melakukan bind lewat layanan Java dan memverifikasi sertifikat.
+Status `directory=ldaps` saja hanya menyatakan konfigurasi, bukan koneksi berhasil.
+
+## 6. Startup, backup, update, pemulihan
+
+Dari PowerShell Administrator, daftarkan startup dengan akun operator yang sama:
 
 ```powershell
-(Get-FileHash .\hc-images.tar.gz -Algorithm SHA256).Hash.ToLower()
-podman load -i .\hc-images.tar.gz
+powershell -NoProfile -File .\deploy\windows\register-startup-task.ps1
 ```
 
-**Cek:** hash yang tampil sama dengan isi `hc-images.sha256.txt`, dan
-`podman images` menampilkan `hc-portal` dan `hc-ad-service`, keduanya `latest`.
+IT harus mengizinkan logon as batch job sesuai kebijakan akun. Uji reboot VM:
+portal harus kembali tersedia tanpa sesi RDP/login interaktif.
 
-> Tidak punya berkas image tapi internet lancar? Lewati langkah ini; di
-> bagian 6 jalankan dulu
-> `podman compose -f compose.production.yml build`.
-
----
-
-## 4. Sertifikat CA
-
-1. Simpan sertifikat CA dari IT sebagai `C:\hc-portal\certs\corp-root-ca.pem`
-   (buat folder `certs` bila belum ada).
-2. Kalau yang diberikan file `.cer`: buka `certlm.msc` → temukan CA →
-   **All Tasks → Export → Base-64 encoded X.509** → simpan dengan nama di atas.
-
-**Cek:** file `certs\corp-root-ca.pem` dibuka di Notepad diawali
-`-----BEGIN CERTIFICATE-----`.
-
----
-
-## 5. Isi `.env.production.local`
+Backup manual (jadwalkan harian lewat Task Scheduler dengan akun yang sama):
 
 ```powershell
-Copy-Item deploy\windows\env.production.example .env.production.local
-notepad .env.production.local
+powershell -NoProfile -File .\deploy\windows\backup-data.ps1 -BackupPath D:\HC-Backups
 ```
 
-Ganti semua `<...>`. Dua rahasia dibuat sekali di PC ini — jalankan perintah
-ini **dua kali**, hasil pertama untuk `AD_SERVICE_TOKEN`, hasil kedua untuk
-`OUTBOX_ENCRYPTION_KEY`:
+Backup menghentikan portal sebentar agar JSON konsisten, mengekspor volume,
+kemudian menghidupkan lagi hanya jika sebelumnya berjalan.
+Arsip lama tidak dihapus otomatis; retensi dan salinan di luar VM dikelola IT.
+Simpan .env (terutama OUTBOX_ENCRYPTION_KEY), CA dan konfigurasi IIS secara terpisah
+di penyimpanan yang diizinkan. Kehilangan kunci berarti data terenkripsi/2FA
+tidak dapat dibuka hanya dari arsip volume.
+
+Update: buat paket baru di laptop, simpan paket lama untuk rollback, salin
+skrip/panduan baru tanpa menimpa .env. Jalankan dari folder aplikasi:
 
 ```powershell
-$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
+powershell -NoProfile -File .\deploy\windows\update-portal.ps1 -ImageArchive D:\paket-baru\hc-images.tar
 ```
 
-Yang perlu diperhatikan:
+Checksum harus di sebelah arsip. Update mengambil backup sebelum memuat image
+dan mengganti container. Tidak menjalankan git pull atau build dependency di kantor.
 
-| Kunci | Isi |
-|---|---|
-| `APP_BASE_URL` | **Sementara** `http://localhost:3000` untuk uji di PC ini. Setelah IIS siap (bagian 8) ganti ke `https://<nama-portal>`. |
-| `AD_LDAP_WRITE_ENABLED` | Biarkan `false` dulu (portal hanya membaca AD). |
-| `OUTBOX_ENCRYPTION_KEY` | **Jangan pernah diganti** — kunci ini juga mengunci data 2FA. |
-| `AD_MANAGED_OUS` | OU yang boleh ditulis: induk OU divisi dan OU karantina. Di luar itu layanan AD menolak menulis. |
-| `EMAIL_REDIRECT_TO` | Harus **kosong**. |
-| `SMTP_USER` / `SMTP_PASSWORD` | Relay kantor tanpa login: kosongkan **keduanya**, isi `SMTP_SENDER`. |
-| `SMTP_TLS` | `required` (wajib terenkripsi). `off` hanya bila IT bilang relay-nya tanpa TLS. |
-| `SMTP_CA_CERT_PATH` | Bila relay memakai sertifikat CA kantor: `/run/certs/corp-root-ca.pem`. |
-| `LOGIN_2FA` | `on` (disarankan) atau `off`. |
+Pemulihan harus diuji di machine/VM terpisah sebelum produksi: setup paket yang
+cocok, simpan kembali .env/kunci yang sama, jalankan pertama kali untuk membuat
+volume, hentikan container, lalu impor backup ke volume data KOSONG yang sudah
+diverifikasi. `podman volume import hc-portal-data <arsip>` mengekstrak isi arsip;
+jangan menimpa volume aktif atau menganggap import membersihkan data lama.
+Uji login/2FA, pengajuan dan audit setelah pemulihan. Rollback image menggunakan
+arsip versi sebelumnya dengan prosedur update; restore data juga diperlukan bila
+format datanya berubah.
 
-**Simpan salinan isi `.env.production.local`** di tempat aman yang disetujui
-kantor — tanpa file ini (terutama kuncinya) data 2FA tidak bisa dibuka.
+## 7. Uji penerimaan sebelum dipakai HC
 
----
+- HTTPS dari PC HC/manager berfungsi; login dan 2FA berhasil.
+- Status sistem membuktikan bind akun service, OU dan email.
+- Uji akun dummy di OU uji: approval manager lalu CISO, objek AD muncul di OU tepat.
+- Terapkan prosedur password awal pada panduan AD, lalu verifikasi login akun.
+- Uji mutasi antar-OU dan termination ke karantina.
+- Reboot tanpa login operator; layanan kembali hidup.
+- Backup dan restore di lingkungan terpisah terbukti.
+- Baru gunakan OU/data produksi sesuai persetujuan pemilik AD.
 
-## 6. Nyalakan portal (masih hanya membaca AD)
-
-```powershell
-podman compose -f compose.production.yml up -d
-```
-
-Buka **http://localhost:3000** di browser PC ini.
-
-**Cek:**
-- halaman login muncul;
-- `podman ps` menampilkan `hc-portal` (healthy) dan `hc-ad-service`;
-- `podman logs hc-portal --tail 20` menampilkan
-  `[ad-sync] ... akun dibaca dari AD` tanpa `Traceback`;
-- `podman logs hc-ad-service --tail 20` diakhiri `Started AdServiceApplication`.
-
-Kalau portal berhenti dengan pesan `ConfigurationError`, pesannya menyebut
-kunci mana di `.env.production.local` yang kurang.
-
----
-
-## 7. Login pertama, 2FA, dan halaman Status sistem
-
-1. Pasang **Microsoft Authenticator** atau **Google Authenticator** di HP.
-2. Login dengan akun AD Anda (anggota group HC/admin).
-3. Muncul **kode QR** → di aplikasi pilih *tambah akun* → pindai.
-   (Tidak bisa memindai? Ketik kunci yang tertulis di bawah QR.)
-4. Masukkan kode 6 digit dari aplikasi → masuk.
-
-Login berikutnya: kata sandi AD, lalu kode 6 digit dari aplikasi.
-
-Buka **http://localhost:3000/status** (menu *Status sistem*, perlu akun group
-admin/ops).
-
-**Cek:** semua pemeriksaan **OK**, kecuali:
-- *Mode tulis* — "Perlu perhatian" (memang masih baca saja),
-- *HTTPS* — "Gagal" sampai bagian 8 selesai.
-
-Bagian **Pengiriman email** harus berbunyi "SMTP ... terhubung" — artinya
-portal benar-benar berhasil tersambung dan login ke server email.
-*OU per divisi* menyebut divisi yang OU-nya belum ada di AD.
-
----
-
-## 8. HTTPS lewat IIS (bersama IT)
-
-Supaya staf HC lain bisa membuka portal dan manajer bisa membuka **link
-persetujuan di email**, portal harus bisa diakses dari PC lain lewat HTTPS.
-Langkahnya (detail di
-[README deploy](deploy/windows/README.md#iis-https-reverse-proxy)):
-
-1. IT memasang IIS, **URL Rewrite**, **ARR**, dan sertifikat untuk nama portal.
-2. Salin `deploy\windows\web.config` ke root situs IIS, ganti host contohnya.
-3. Ubah `APP_BASE_URL=https://<nama-portal>` di `.env.production.local`.
-4. Terapkan:
-
-   ```powershell
-   podman compose -f compose.production.yml up -d
-   ```
-
-**Cek:** dari PC lain, `https://<nama-portal>` membuka halaman login, dan
-*Status sistem* → *HTTPS* **OK**. Port 3000 **tidak** dibuka ke jaringan —
-hanya IIS.
-
----
-
-## 9. Nyalakan penulisan ke AD
-
-Setelah pemilik AD setuju:
-
-1. `AD_LDAP_WRITE_ENABLED=true` di `.env.production.local`.
-2. `podman compose -f compose.production.yml up -d`
-3. Uji satu onboarding sungguhan ke divisi uji coba: HC mengajukan → manajer
-   klik **Setujui** di email → tim CISO klik **Setujui** → status **Selesai** →
-   akun muncul di OU divisinya.
-
----
-
-## 10. Satu hal yang hanya bisa dijawab di AD kantor
-
-Portal **tidak pernah menulis password**. Bila domain mewajibkan password
-sebelum akun boleh aktif, onboarding berakhir: **akun dibuat tetapi
-nonaktif**, dan langkah aktivasi tercatat *Gagal* dengan alasan dari AD. Itu
-disengaja. Yang memegang penerbitan password mengisinya, lalu langkah itu
-diulang dari halaman pengajuan (tombol **Coba lagi**, untuk akun group
-admin/ops). Langkah yang sudah selesai tidak diulang.
-
----
-
-## 11. Otomatis menyala setelah PC restart
-
-PowerShell **sebagai Administrator**, di `C:\hc-portal`:
-
-```powershell
-.\deploy\windows\register-startup-task.ps1
-```
-
-Masukkan akun Windows pemilik mesin Podman dan kata sandinya.
-
-**Cek:** restart PC **tanpa login** → setelah beberapa menit portal menjawab
-lagi. Kalau tidak, lihat `C:\hc-portal\logs\start-portal.log`.
-
----
-
-## Pekerjaan rutin
-
-| Untuk | Perintah (di `C:\hc-portal`) |
-|---|---|
-| Lihat apakah portal jalan | `podman ps` |
-| Lihat log | `podman logs hc-portal --tail 50` dan `podman logs hc-ad-service --tail 50` |
-| Ubah pengaturan `.env.production.local` | edit, lalu `podman compose -f compose.production.yml up -d` |
-| Matikan / nyalakan 2FA | `LOGIN_2FA=off` / `on`, lalu perintah di atas |
-| HP staf hilang/ganti (reset 2FA) | `podman exec hc-portal python scripts/mfa_reset.py <username>` |
-| Siapa saja yang sudah daftar 2FA | `podman exec hc-portal python scripts/mfa_reset.py --list` |
-| Catatan login (berhasil/gagal/terkunci) | halaman *Status sistem*, bagian *Catatan login terakhir* |
-| Kirim antrean email / jalankan worker / sinkron AD sekarang | halaman *Status sistem*, bagian *Jalankan sekarang* |
-| Backup data | `.\deploy\windows\backup-data.ps1` |
-| Pasang versi baru (berkas image baru) | `.\deploy\windows\update-portal.ps1 -ImageArchive C:\hc-portal\hc-images.tar.gz` |
-| Hentikan portal | `podman compose -f compose.production.yml down` |
-
-Reset 2FA hanya setelah memastikan orangnya benar: siapa pun yang login
-pertama kali dengan kata sandinya setelah reset akan mendaftarkan HP-nya.
-
----
-
-## Kalau ada masalah
-
-| Gejala | Penyebab & jalan keluar |
-|---|---|
-| `machine did not transition into running state: ssh error` atau `Cannot connect to Podman` | Mesin menyala setengah. `podman machine stop`, `wsl --shutdown`, `podman machine start`. |
-| Unduhan macet / `TLS handshake timeout`, atau *Status sistem*: "SMTP tidak dapat dihubungi: The handshake operation timed out" | Masalah MTU jaringan. Jalankan `powershell -ExecutionPolicy Bypass -File .\deploy\windows\perbaiki-mtu.ps1` (menetap setelah restart), lalu ulangi. |
-| Container berhenti sendiri, `podman machine` mati saat build | Memori mesin kurang. `podman machine stop`, `podman machine set --memory 4096`, `podman machine start`. |
-| Kode 2FA **selalu** salah untuk semua orang | Jam mesin Podman melenceng (sering setelah PC sleep). `podman machine stop`, `wsl --shutdown`, `podman machine start`. Pastikan jam HP otomatis. |
-| Satu orang kodenya selalu salah | Jam HP-nya tidak otomatis, atau HP lain. Atur jam otomatis; kalau tetap, reset 2FA orang itu. |
-| "Akun dikunci sementara" | 5 kali salah dalam 15 menit. Tunggu 15 menit. Ini hanya di portal; login Windows tidak terpengaruh. |
-| "Verifikasi 2 langkah akun ini perlu diatur ulang" | `OUTBOX_ENCRYPTION_KEY` berubah. Kembalikan nilai lama, atau reset 2FA semua orang. |
-| "Server Active Directory tidak bisa dihubungi" | *Status sistem* dan `podman logs hc-ad-service`: biasanya CA, nama host DC, atau DNS. Uji DNS: `podman exec hc-ad-service getent hosts <nama-host-dc>`. |
-| `hc-ad-service` berhenti atau restart terus | `podman logs hc-ad-service --tail 30`. Di production layanan AD menolak menyala bila pengaturan wajib kurang, dan menyebut kuncinya, misalnya "AD_LDAP_URL/LDAP_URL wajib diisi di production". Lengkapi `.env.production.local`, lalu `podman compose -f compose.production.yml up -d`. |
-| *Status sistem*: "Layanan AD tidak menjawab" | Container `hc-ad-service` mati, atau `AD_SERVICE_TOKEN` tidak sama di kedua container (keduanya membaca berkas yang sama, jadi biasanya karena container lama). `podman compose -f compose.production.yml up -d`. |
-| "Portal ini hanya untuk tim Human Capital" | Akun bukan anggota `AD_GROUP_HC`/`AD_GROUP_ADMIN`. Minta IT menambahkan ke group. |
-| Email tidak sampai | *Status sistem* → *Pengiriman email* dan *Antrean email* menyebut penyebabnya (login ditolak, relay menolak, TLS). Antrean menunggu sampai pengaturan diperbaiki; tidak ada email yang hilang. |
-| Staf yang dinonaktifkan masih bisa masuk | Tidak bisa lebih dari 5 menit (`SESSION_RECHECK_MINUTES`). Cek *Status sistem* → *Cek ulang sesi ke AD*. |
-| Portal tidak bisa dibuka dari PC lain | Belum lewat IIS (bagian 8). Jangan membuka port 3000 ke jaringan. |
-
-**Satu portal saja.** Jangan menjalankan portal di dua PC sekaligus untuk
-kantor yang sama — dua pengirim email berarti satu email persetujuan terkirim
-dua kali.
+Rujukan:
+[instalasi Hyper-V Windows Server](https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/get-started/install-hyper-v),
+[Podman Windows/Hyper-V](https://github.com/podman-container-tools/podman/blob/main/docs/tutorials/podman-for-windows.md),
+[nested virtualization Microsoft](https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/enable-nested-virtualization).

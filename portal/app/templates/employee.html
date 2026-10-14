@@ -36,15 +36,25 @@
       <h2 class="card-title">Data karyawan</h2>
       <dl class="facts-grid mt-3">
         <div><dt>Email</dt><dd>{{ employee.email }}</dd></div>
+        <div><dt>CN</dt><dd>{{ employee.cn or employee.displayName or '—' }}</dd></div>
+        <div><dt>Display name</dt><dd>{{ employee.displayName or '—' }}</dd></div>
+        <div><dt>Given name</dt><dd>{{ employee.firstName or '—' }}</dd></div>
+        <div><dt>SN / last name</dt><dd>{{ employee.lastName or '—' }}</dd></div>
         <div><dt>Manager</dt><dd>{% if employee.managerName %}{{ employee.managerName }}<span class="block faint small">{{ employee.managerEmail }}</span>{% else %}—{% endif %}</dd></div>
         <div><dt>Jabatan</dt><dd>{{ employee.jobTitle or '—' }}</dd></div>
         <div><dt>Departemen</dt><dd>{{ employee.department or '—' }}</dd></div>
+        <div><dt>Company</dt><dd>{{ employee.company or '—' }}</dd></div>
+        <div><dt>Office</dt><dd>{{ employee.office or '—' }}</dd></div>
+        <div><dt>sAMAccountName</dt><dd>{{ employee.sAMAccountName or '—' }}</dd></div>
+        <div><dt>User principal name</dt><dd>{{ employee.userPrincipalName or '—' }}</dd></div>
+        <div class="span-2"><dt>Distinguished name</dt><dd>{{ employee.distinguishedName or '—' }}</dd></div>
+        <div><dt>Jenis pekerja</dt><dd>{{ worker_categories.get(employee.workerCategory or '', '—') }}</dd></div>
         <div><dt>Status kepegawaian</dt><dd>{{ employment.get(employee.employmentType or '', '—') }}</dd></div>
-        {% if employee.expiredDate %}<div><dt>Tanggal terakhir bekerja</dt><dd>{{ date_text(employee.expiredDate) }}</dd></div>{% endif %}
+        <div><dt>Account expires</dt><dd>{{ date_text(employee.expiredDate) if employee.expiredDate else 'Tidak kedaluwarsa' }}</dd></div>
         <div><dt>Lokasi</dt><dd>{{ locations.get(employee.locationType or '', '—') }}{% if employee.branchName %} — {{ employee.branchName }}{% endif %}</dd></div>
         <div><dt>Tertaut ke AD</dt><dd>{{ 'Ya' if employee.objectGUID else 'Belum' }}</dd></div>
       </dl>
-      {% if employee.jobDescription %}<p class="side-section muted">{{ employee.jobDescription }}</p>{% endif %}
+      {% if employee.jobDescription %}<p class="side-section muted">Description: {{ employee.jobDescription }}</p>{% endif %}
     </section>
 
     <section class="card clip">

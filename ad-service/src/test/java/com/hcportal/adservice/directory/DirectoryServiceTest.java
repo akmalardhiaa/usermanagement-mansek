@@ -117,7 +117,8 @@ class DirectoryServiceTest {
 
     private static DirectoryService.CreateSpec spec(String name, String ou) {
         return new DirectoryService.CreateSpec(name, name + "@corp.example.com", "Uji Coba", "Uji", "Coba",
-                name + "@corp.example.com", "Accounting", "Accounting Staff", "bagus.nugroho", ou);
+                name + "@corp.example.com", "Accounting", "Accounting Staff", "bagus.nugroho", ou,
+                "PT Mandiri Sekuritas", "Kantor Pusat", "TI Helpdesk", "2026-12-31");
     }
 
     @Test
@@ -129,6 +130,11 @@ class DirectoryServiceTest {
         assertThat(DirectoryService.sameDn(created.ou(), FINANCE)).isTrue();
         assertThat(created.manager()).isEqualTo("bagus.nugroho");
         assertThat(created.userPrincipalName()).isEqualTo("uji.coba@corp.example.com");
+        assertThat(created.company()).isEqualTo("PT Mandiri Sekuritas");
+        assertThat(created.office()).isEqualTo("Kantor Pusat");
+        assertThat(created.description()).isEqualTo("TI Helpdesk");
+        assertThat(created.accountExpires()).isEqualTo("134432100000000000");
+        assertThat(created.distinguishedName()).isEqualTo("CN=Uji Coba," + FINANCE);
         assertThat(created.objectGUID()).matches("[0-9a-f-]{36}");
 
         directory.setEnabled(created.objectGUID(), true);
@@ -146,7 +152,7 @@ class DirectoryServiceTest {
         assertThatThrownBy(() -> service().createAccount(spec("dewi.lestari", FINANCE)))
                 .extracting(error -> ((AdException) error).kind()).isEqualTo(AdException.Kind.CONFLICT);
         DirectoryService.CreateSpec noManager = new DirectoryService.CreateSpec("x.y", "x.y@corp", "X Y", "X", "Y",
-                "x.y@corp", "Finance", "Staff", "tidak.ada", FINANCE);
+                "x.y@corp", "Finance", "Staff", "tidak.ada", FINANCE, null, null, null, null);
         assertThatThrownBy(() -> service().createAccount(noManager))
                 .extracting(error -> ((AdException) error).kind()).isEqualTo(AdException.Kind.NOT_FOUND);
     }
@@ -156,16 +162,22 @@ class DirectoryServiceTest {
         DirectoryService directory = service();
         String guid = directory.findByAccountName("dewi.lestari").orElseThrow().objectGUID();
 
-        directory.setAttributes(guid, new DirectoryService.AttributePatch(null, "Treasury", "Treasury Officer", null, null));
+        directory.setAttributes(guid, new DirectoryService.AttributePatch(null, null, null,
+                "Treasury", "Treasury Officer", null, null,
+                null, "Kantor Pusat", "TI Helpdesk", "2026-12-31"));
         AccountState after = directory.findByGuid(guid).orElseThrow();
         assertThat(after.department()).isEqualTo("Treasury");
         assertThat(after.title()).isEqualTo("Treasury Officer");
         assertThat(after.manager()).isEqualTo("bagus.nugroho");
 
-        directory.setAttributes(guid, new DirectoryService.AttributePatch(null, null, "", "", null));
+        directory.setAttributes(guid, new DirectoryService.AttributePatch(null, null, null,
+                null, "", "", null,
+                null, null, "", ""));
         Entry stored = server.getEntry("CN=Dewi Lestari," + FINANCE);
         assertThat(stored.hasAttribute("title")).isFalse();
         assertThat(stored.hasAttribute("manager")).isFalse();
+        assertThat(stored.hasAttribute("description")).isFalse();
+        assertThat(stored.getAttributeValue("accountExpires")).isEqualTo("0");
     }
 
     @Test
